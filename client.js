@@ -2002,6 +2002,47 @@ window.__ModuleLoader__.load({
           : h('div', { className: 'dsc-hint' }, '没有定时任务。'))
     }
 
+    function XdPoolPanel() {
+      const [data, setData] = React.useState(null)
+      const load = React.useCallback(async () => {
+        try {
+          const [xd, prov] = await Promise.all([
+            call(`/dsh-console/api/xdpool?t=${Date.now()}`),
+            call(`/dsh-console/api/providers?t=${Date.now()}`),
+          ])
+          setData({ xd: xd || {}, prov: prov || {} })
+        } catch (e) {
+          setData({ xd: { installed: false, message: String(e) }, prov: {} })
+        }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const xd = (data && data.xd) || {}
+      const st = xd.status || {}
+      const prov = (data && data.prov) || {}
+      return h('div', { className: 'dsc-root', style: { padding: '4px' } },
+        h('style', null, CSS),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'XD Pool 控制面板', h('small', null, xd.installed ? '宿主已加载' : '未安装')),
+          xd.installed
+            ? h(React.Fragment, null,
+              h('div', { className: 'dsc-chips' },
+                h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String((st.accounts || []).length))),
+                h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String((st.models || []).length))),
+                h('span', { className: 'dsc-chip' }, '冷却 ', h('b', null, String(st.cooling || 0))),
+                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String((((xd.aggregate || {}).providers) || []).length)))),
+              h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
+                '账号池、扫码登录、76 家聚合渠道由 XD Pool 宿主维护；这里提供状态和统一模型视图。'))
+            : h('div', { className: 'dsc-hint' }, xd.message || '未检测到 XD Pool。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '统一模型来源', h('small', null, 'GET /dsh-console/api/providers')),
+          h('div', { className: 'dsc-chips' },
+            ...((prov.sources || []).map((s) => h('span', { key: s.id, className: 'dsc-chip' },
+              s.name || s.id, ' ', h('b', null, String(s.models || 0)))))),
+          h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
+            h('button', { type: 'button', className: 'dsc-btn primary', onClick: load }, '刷新'))),
+      )
+    }
+
     function ConsolePage(props) {
       const tr = picker(props.t)
       const [snap, setSnap] = React.useState(null)
@@ -2169,6 +2210,26 @@ window.__ModuleLoader__.load({
     }
 
     function FreePoolView({ snap, act, busy }) {
+      const [xd, setXd] = React.useState(null)
+      const [prov, setProv] = React.useState(null)
+      const [fm, setFm] = React.useState(null)
+      const [fmq, setFmq] = React.useState('')
+      const loadFm = React.useCallback((q = '') => {
+        call(`/dsh-console/api/free-models?q=${encodeURIComponent(q)}&t=${Date.now()}`)
+          .then((data) => setFm(data || { models: [] }))
+          .catch(() => setFm({ models: [] }))
+      }, [])
+      React.useEffect(() => {
+        let alive = true
+        call(`/dsh-console/api/xdpool?t=${Date.now()}`)
+          .then((data) => { if (alive) setXd(data || { installed: false }) })
+          .catch(() => { if (alive) setXd({ installed: false }) })
+        call(`/dsh-console/api/providers?t=${Date.now()}`)
+          .then((data) => { if (alive) setProv(data || {}) })
+          .catch(() => { if (alive) setProv({ sources: [] }) })
+        loadFm('')
+        return () => { alive = false }
+      }, [loadFm])
       const fp = snap.freePool || {}
       const sched = snap.scheduler || {}
       const auto = snap.autoscale || {}
@@ -2182,6 +2243,50 @@ window.__ModuleLoader__.load({
       return h(
         React.Fragment,
         null,
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'XD Pool 伴侣', h('small', null, xd && xd.installed ? '已检测' : '可选')),
+          xd === null
+            ? h('div', { className: 'dsc-hint' }, '读取 XD Pool 状态…')
+            : xd.installed
+              ? h(React.Fragment, null,
+                h('div', { className: 'dsc-chips' },
+                  h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(((xd.status || {}).accounts || []).length))),
+                  h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String(((xd.status || {}).models || []).length))),
+                  h('span', { className: 'dsc-chip' }, '冷却 ', h('b', null, String((xd.status || {}).cooling || 0))),
+                  h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String((((xd.aggregate || {}).providers) || []).length)))),
+                h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+                  '伴侣模式：账号池、登录和路由由 XD Pool 维护，这里只读显示。'))
+              : h('div', { className: 'dsc-hint' }, '未安装 XD Pool；装好后这里会显示它的账号池、模型和聚合渠道。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '模型来源（统一 API）', h('small', null, (prov && prov.version ? 'v' + prov.version : '可选'))),
+          h('div', { className: 'dsc-chips' },
+            ...((prov && prov.sources) || []).map((s) => h('span', { key: s.id, className: 'dsc-chip' },
+              s.name || s.id, ' ', h('b', null, String(s.models || 0))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+            'GET /dsh-console/api/providers；统一返回 source / model / state，供调度器直接消费。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '免费模型登记', h('small', null, (fm && fm.total !== undefined ? fm.total + ' 条' : '加载中'))),
+          h('div', { className: 'dsc-actions' },
+            h('input', {
+              type: 'text', value: fmq, placeholder: '搜索来源 / 模型 / 额度 / 绑卡',
+              onChange: (e) => setFmq(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter') loadFm(fmq) },
+              style: { minWidth: '240px' },
+            }),
+            h('button', { type: 'button', className: 'dsc-btn primary', onClick: () => loadFm(fmq) }, '搜索')),
+          h('table', { className: 'dsc-table', style: { marginTop: '10px' } },
+            h('thead', null, h('tr', null,
+              h('th', null, '来源'), h('th', null, '模型'), h('th', null, '状态'),
+              h('th', null, '绑卡'), h('th', null, '免费额度'), h('th', null, 'IQ'))),
+            h('tbody', null, ((fm && fm.models) || []).slice(0, 30).map((m, i) => h('tr', { key: m.model || m.provider || i },
+              h('td', null, m.source || ''),
+              h('td', null, m.model || m.provider || ''),
+              h('td', null, m.status || ''),
+              h('td', null, m.card_required || '—'),
+              h('td', null, String(m.free_quota || m.quota || '—').slice(0, 60)),
+              h('td', null, m.iq_score !== undefined ? String(m.iq_score) : '—'))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+            'IQ 限流会自动按 10/20/40 分钟退避重试，结果写回 registry。')),
         h('section', { className: 'dsc-card' },
           h('h3', { className: 'dsc-sec-title' }, '素材 / GitHub', h('small', null, assets.updated || '')),
           h('div', { className: 'dsc-chips' },
@@ -2335,6 +2440,13 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             { name: 'sidebar.panellist', id: PANEL_ID, order: 5, locale: NS, label: () => t('panel') },
             ConsoleIcon,
+          ),
+        )
+
+        ctx.slots.inject('settings.section', () =>
+          ctx.slots.register(
+            { name: 'settings.section', id: 'xdpool-control', order: 441, label: () => 'XD Pool' },
+            XdPoolPanel,
           ),
         )
 
