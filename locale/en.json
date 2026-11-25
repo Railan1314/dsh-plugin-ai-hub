@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Process Console",
+    "description": "A sidebar control panel for the ds workspace pipeline: live status and audit progress, switches for auto supervision, restart-on-failure and phone notifications, plus start and stop actions."
+  }
+}

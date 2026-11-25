@@ -1,0 +1,43 @@
+{
+  "name": "dsh-plugin-ai-hub",
+  "version": "2.1.0",
+  "private": false,
+  "description": "DSH 左栏调度台：任务、并发、免费池、地图/贴图/平衡工具",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "scheduler",
+    "dashboard",
+    "modding"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/USERNAME/dsh-plugin-ds-console.git"
+  }
+}
