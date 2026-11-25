@@ -796,6 +796,9 @@ function createConsole(ctx) {
       scheduler: readJson(join(root, 'tools', 'scheduler_status.json'), null),
       assets: readJson(join(root, 'tools', 'assets_index.json'), null),
       community: readJson(join(root, 'tools', 'community_assets.json'), null),
+      swarm: readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] }),
+      telemetry: readJson(join(root, 'tools', 'telemetry_summary.json'), null),
+      taskHistory: taskHistory(),
       selfCheck: readJson(join(root, 'tools', 'self_check.json'), null),
       pluginVersion: readJson(join(root, '插件', 'ai-hub', 'package.json'), {}).version || '',
       autoscale: readJson(join(root, 'tools', 'autoscale_status.json'), null),
@@ -1818,6 +1821,16 @@ function createConsole(ctx) {
     if (type === 'map-stop') return { ...stopMapTask(), status: snapshot() }
     if (type === 'art-start') return { ...startArtTask(), status: snapshot() }
     if (type === 'art-stop') return { ...stopArtTask(), status: snapshot() }
+    if (type === 'telemetry-run') {
+      try {
+        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'task_telemetry.py')], {
+          cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+        }).unref()
+        return { ok: true, status: snapshot() }
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e), status: snapshot() }
+      }
+    }
     if (type === 'self-check') {
       try {
         spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'self_check.py')], {
@@ -2621,12 +2634,23 @@ function createConsole(ctx) {
 
   function taskControlSnapshot() {
     const now = Date.now()
-    return (snapshot().tasks || []).map((t) => {      const updated = Date.parse(String(t.updated || '').replace(' ', 'T'))
+    const roles = { desc: '施工鱼', map: '地图鱼', art: '贴图鱼', balance: '平衡鱼' }
+    const acceptance = {
+      desc: 'node --check / self_check.py',
+      map: 'map_validate.py 通过',
+      art: '贴图索引完整',
+      balance: 'balance_sim.py 通过',
+    }
+    return (snapshot().tasks || []).map((t) => {
+      const updated = Date.parse(String(t.updated || '').replace(' ', 'T'))
       const staleMinutes = Number.isFinite(updated) ? Math.round((now - updated) / 60000) : null
       return {
         id: t.id,
         name: t.name,
         state: t.state,
+        role: roles[t.id] || '工班',
+        batch: Number(t.batch || t.round || t.done || 0),
+        acceptance: acceptance[t.id] || '任务指定验收',
         pid: t.pid || null,
         detail: t.detail || '',
         workers: t.workers || 0,
@@ -3011,6 +3035,32 @@ function createConsole(ctx) {
       return
     }
     const route = path.slice(ROUTE_PREFIX.length).replace(/^\/+/, '')
+
+    if (req.method === 'GET' && (route === 'api/swarm' || route === 'swarm')) {
+      const data = readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] })
+      const tasks = Array.isArray(data.tasks) ? data.tasks : []
+      const counts = {}
+      for (const t of tasks) counts[t.status || '?'] = (counts[t.status || '?'] || 0) + 1
+      sendJson(res, 200, { ok: true, api: '/dsh-console/api/swarm', counts, tasks })
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/swarm' || route === 'swarm')) {
+      const payload = await readBody(req)
+      const action = String(payload.op || payload.action || 'list')
+      if (action === 'start') {
+        try {
+          spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'swarm_orchestrator.py'), 'start', '--workers', String(Number(payload.workers) || 4)], {
+            cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+          }).unref()
+          sendJson(res, 200, { ok: true, started: true, workers: Number(payload.workers) || 4 })
+        } catch (e) {
+          sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e) })
+        }
+        return
+      }
+      sendJson(res, 400, { ok: false, message: '未知 op，只支持 start；任务用 swarm_orchestrator.py plan/add 写入' })
+      return
+    }
 
     if (req.method === 'GET' && (route === 'api/tasks' || route === 'tasks')) {
       sendJson(res, 200, {
