@@ -1913,7 +1913,7 @@ function createConsole(ctx) {
     let registered
     let probe = null
     try {
-      const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'provider_probe.py'), '--base-url', String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')), '--key', key, '--model', String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))], { cwd: root, encoding: 'utf8', timeout: 90000 })
+      const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'provider_probe.py'), '--base-url', String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')), '--key', key, '--model', String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))], { cwd: root, encoding: 'utf8', timeout: 90000, windowsHide: true })
       probe = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
     } catch (error) {
       probe = { ok: false, mode: 'direct', reason: String((error && error.message) || error).slice(0, 200) }
@@ -1935,7 +1935,7 @@ function createConsole(ctx) {
         const iqBase = probe && probe.mode === 'bridge' ? 'http://127.0.0.1:8799/v1' : String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : ''))
         const iqModel = String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))
         if (iqBase && iqModel) {
-          const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'iq_probe.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor], { cwd: root, encoding: 'utf8', timeout: 300000 })
+          const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'iq_probe.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor], { cwd: root, encoding: 'utf8', timeout: 300000, windowsHide: true })
           iq = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
           const latest = readJson(cfgPath, {})
           latest.model_iq = latest.model_iq || {}
@@ -3780,7 +3780,7 @@ function createConsole(ctx) {
         return
       }
       try {
-        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'local_search.py'), q, '--limit', String(Number(url.searchParams.get('limit')) || 12)], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'local_search.py'), q, '--limit', String(Number(url.searchParams.get('limit')) || 12)], { cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true })
         const raw = String(out || '').trim()
         const start = raw.indexOf('{')
         sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
@@ -3796,7 +3796,7 @@ function createConsole(ctx) {
         return
       }
       try {
-        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_router.py'), role], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_router.py'), role], { cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true })
         const raw = String(out || '').trim()
         sendJson(res, 200, JSON.parse(raw.slice(raw.indexOf('{'))))
       } catch (error) {
@@ -4576,7 +4576,7 @@ export function apply(ctx) {
         if (parameterName) argv.push(String(args[parameterName] || ''))
         else argv.push('test')
         try {
-          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 })
+          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024, windowsHide: true })
         } catch (error) {
           return `SOURCE_ERROR: ${String((error && error.stderr) || (error && error.message) || error).slice(0, 4000)}`
         }
