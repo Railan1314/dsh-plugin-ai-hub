@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ai-hub",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "AI 调度台（主机）：密钥池 / 并发 / 任务注册 / 大肥鱼；任务由 DLC 插件注册",
   "type": "module",
