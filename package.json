@@ -1,8 +1,8 @@
 {
   "name": "dsh-plugin-ai-hub",
-  "version": "2.1.0",
-  "private": false,
-  "description": "DSH 左栏调度台：任务、并发、免费池、地图/贴图/平衡工具",
+  "version": "2.2.0",
+  "private": true,
+  "description": "AI 调度台（主机）：密钥池 / 并发 / 任务注册 / 大肥鱼；任务由 DLC 插件注册",
   "type": "module",
   "main": "index.js",
   "license": "MIT",
@@ -29,13 +29,6 @@
       "immediately": true
     }
   },
-  "keywords": [
-    "dsh",
-    "dsh-plugin",
-    "scheduler",
-    "dashboard",
-    "modding"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/Railan1314/dsh-plugin-ds-console.git"
