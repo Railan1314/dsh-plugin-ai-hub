@@ -10,6 +10,7 @@
  * 只用 node: 内置模块，不依赖第三方包。
  */
 import { execFile, execFileSync, spawn } from 'node:child_process'
+import { request as httpsRequest } from 'node:https'
 import { zstdDecompressSync } from 'node:zlib'
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -379,8 +380,8 @@ function createConsole(ctx) {
     return { pid: lock.pid, started: lock.started, alive: false }
   }
 
-  function snapshot() {
-    refreshDshCount(true)
+  function snapshot(force = false) {
+    refreshDshCount(force)
     const relay = relayDir()
     const status = readJson(join(relay, 'status.json'), {})
     const saved = readJson(join(relay, 'state.json'), {})
@@ -699,6 +700,8 @@ function createConsole(ctx) {
           poolMax,
           theory,
           actualTotal: items.reduce((a, b) => a + b.actual, 0),
+          slotCapacity: accounts * 4,
+          slotIdle: Math.max(0, accounts * 4 - items.reduce((a, b) => a + b.actual, 0)),
           items,
           pipelineWorkers,
           parallelActive,
@@ -799,6 +802,7 @@ function createConsole(ctx) {
       swarm: readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] }),
       telemetry: readJson(join(root, 'tools', 'telemetry_summary.json'), null),
       taskHistory: taskHistory(),
+      models: readJson(join(root, 'tools', 'dsh_config.json'), {}).models || [],
       selfCheck: readJson(join(root, 'tools', 'self_check.json'), null),
       pluginVersion: readJson(join(root, '插件', 'ai-hub', 'package.json'), {}).version || '',
       autoscale: readJson(join(root, 'tools', 'autoscale_status.json'), null),
@@ -1141,6 +1145,49 @@ function createConsole(ctx) {
   let quotaCacheAt = 0
   let quotaCacheValue = null
 
+  let balanceCacheAt = 0
+  let balanceCacheText = ''
+
+  /** 账号余额（DeepSeek 付费侧）：读 quota.ps1 写的缓存，超 5 分钟就自己查一次。 */
+  function accountBalanceText() {
+    if (Date.now() - balanceCacheAt < 5000) return balanceCacheText
+    balanceCacheAt = Date.now()
+    const cached = readJson(join(root, 'tools', 'account_balance.json'), {})
+    const age = Date.now() - (Date.parse(String(cached.updated || '').replace(' ', 'T')) || 0)
+    if (cached.balance && age < 5 * 60 * 1000) {
+      balanceCacheText = String(cached.balance)
+      return balanceCacheText
+    }
+    try {
+      const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+      const key = String(cfg.api_key || '')
+      if (!key) throw new Error('no api_key')
+      const req = httpsRequest({
+        hostname: 'api.deepseek.com', path: '/user/balance', method: 'GET', timeout: 8000,
+        headers: { Authorization: `Bearer ${key}` },
+      }, (res) => {
+        let raw = ''
+        res.setEncoding('utf8')
+        res.on('data', (chunk) => { raw += chunk })
+        res.on('end', () => {
+          try {
+            const info = (JSON.parse(raw).balance_infos || [])[0]
+            if (info) {
+              const symbol = info.currency === 'CNY' ? '¥' : `${info.currency} `
+              balanceCacheText = `${symbol}${info.total_balance}`
+              writeJson(join(root, 'tools', 'account_balance.json'), { balance: balanceCacheText, updated: nowText() })
+            }
+          } catch { /* ignore */ }
+        })
+      })
+      req.on('timeout', () => req.destroy())
+      req.on('error', () => {})
+      req.end()
+    } catch { /* ignore */ }
+    if (!balanceCacheText && cached.balance) balanceCacheText = String(cached.balance)
+    return balanceCacheText
+  }
+
   const tokenLedgerPath = join(root, 'tools', 'token_ledger.json')
   const TOKEN_BYTES_PER_TOKEN = 3.5
 
@@ -1279,6 +1326,7 @@ function createConsole(ctx) {
       firstUse: firstUse ? dayOf(firstUse) : String(ledger.baselineAt || '').slice(0, 10),
       perKey: keys.length ? Math.round(tokens / keys.length) : 0,
       updated: nowText(),
+      balance: accountBalanceText(),
       note: `累计 = 清理前基线 ${Math.round(baseline / 10000)}w + 之后新会话 ${Math.round(entryTokens / 10000)}w；只增不减。AMD 无余额接口，容量等跑满/被限流后反推`,
     }
     quotaCacheAt = Date.now()
@@ -1963,12 +2011,12 @@ function createConsole(ctx) {
     return { ok: false, message: `未知操作：${String(type)}` }
   }
 
-  async function withBotPids() {
-    return snapshotWith(await botPidsCached())
+  async function withBotPids(force = false) {
+    return snapshotWith(await botPidsCached(), force)
   }
 
-  function snapshotWith(pids) {
-    const base = snapshot()
+  function snapshotWith(pids, force = false) {
+    const base = snapshot(force)
     base.bot = botSnapshot(pids)
     return base
   }
@@ -3036,6 +3084,36 @@ function createConsole(ctx) {
     }
     const route = path.slice(ROUTE_PREFIX.length).replace(/^\/+/, '')
 
+    if (req.method === 'GET' && (route === 'api/schedules' || route === 'schedules')) {
+      try {
+        const svc = globalThis.__AI_HUB_CTX__ && typeof globalThis.__AI_HUB_CTX__.get === 'function'
+          ? globalThis.__AI_HUB_CTX__.get('schedule') : null
+        if (!svc || typeof svc.catalog !== 'function') {
+          sendJson(res, 200, { ok: false, message: 'schedule service not available', items: [] })
+          return
+        }
+        sendJson(res, 200, { ok: true, items: await svc.catalog() })
+      } catch (e) {
+        sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e), items: [] })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/schedules' || route === 'schedules')) {
+      try {
+        const payload = await readBody(req)
+        const svc = globalThis.__AI_HUB_CTX__ && typeof globalThis.__AI_HUB_CTX__.get === 'function'
+          ? globalThis.__AI_HUB_CTX__.get('schedule') : null
+        if (!svc || typeof svc.delete !== 'function') {
+          sendJson(res, 200, { ok: false, message: 'schedule service not available' })
+          return
+        }
+        sendJson(res, 200, await svc.delete({ sessionId: payload.sessionId, id: payload.id }))
+      } catch (e) {
+        sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e) })
+      }
+      return
+    }
+
     if (req.method === 'GET' && (route === 'api/swarm' || route === 'swarm')) {
       const data = readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] })
       const tasks = Array.isArray(data.tasks) ? data.tasks : []
@@ -3084,7 +3162,8 @@ function createConsole(ctx) {
     }
     if (req.method === 'GET' && (route === 'api/status' || route === 'status')) {
       try {
-        sendJson(res, 200, await withBotPids())
+        const force = url.searchParams.get('refresh') === '1'
+        sendJson(res, 200, await withBotPids(force))
       } catch (error) {
         log(`status 失败：${String((error && error.stack) || error)}`)
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error) })
@@ -3455,6 +3534,7 @@ function createConsole(ctx) {
  */
 export function apply(ctx) {
   const tasks = new Map()
+  globalThis.__AI_HUB_CTX__ = ctx
   globalThis.__AI_HUB__ = {
     version: 1,
     registerTask(desc) {
@@ -3470,6 +3550,7 @@ export function apply(ctx) {
   }
   ctx.effect(() => () => {
     if (globalThis.__AI_HUB__ && globalThis.__AI_HUB__.listTasks) delete globalThis.__AI_HUB__
+    delete globalThis.__AI_HUB_CTX__
   }, 'ai-hub: task registry')
   createConsole(ctx).install()
 }
