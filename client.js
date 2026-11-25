@@ -1812,14 +1812,17 @@ window.__ModuleLoader__.load({
           h(
             'table',
             { className: 'dsc-table' },
-            h('thead', null, h('tr', null, h('th', null, '任务'), h('th', null, '状态'), h('th', null, '进度'), h('th', null, 'Key/并发'), h('th', null, '预计'), h('th', null, '操作'))),
+            h('thead', null, h('tr', null, h('th', null, '任务'), h('th', null, '工种'), h('th', null, '批次'), h('th', null, '状态'), h('th', null, '进度'), h('th', null, '验收'), h('th', null, 'Key/并发'), h('th', null, '预计'), h('th', null, '操作'))),
             h(
               'tbody',
               null,
               tasks.map((task) => h('tr', { key: task.id },
                 h('td', null, task.name || task.id),
+                h('td', null, task.role || '工班'),
+                h('td', null, String(task.batch || 0)),
                 h('td', null, task.state || 'idle'),
                 h('td', null, task.detail || ''),
+                h('td', null, task.acceptance || '任务指定'),
                 h('td', null, `${task.keys || 0} key / ${task.workers || 0} 路`),
                 h('td', { title: (etaMap[task.id] || {}).basis || '' }, (etaMap[task.id] || {}).eta_text || '—'),
                 h('td', null,
@@ -1838,6 +1841,43 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
             '这里只放精简状态和软启停；详细控制台在左栏「插件任务」里。'),
         ),
+      )
+    }
+
+    function ReviewView({ snap, act, busy }) {
+      const tel = snap.telemetry || {}
+      const summary = tel.summary || {}
+      const issues = tel.issues || []
+      const history = snap.taskHistory || []
+      const rows = Object.entries(summary)
+      return h(React.Fragment, null,
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '批次复盘', h('small', null, tel.updated || '暂无遥测')),
+          h('div', { className: 'dsc-actions' },
+            h('button', { type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy), onClick: () => act({ type: 'telemetry-run' }, '生成复盘') }, '重新分析'),
+            h('span', { className: 'dsc-hint' }, '按任务类型看 token / 耗时 / 异常')),
+          rows.length
+            ? h('table', { className: 'dsc-table' },
+              h('thead', null, h('tr', null, h('th', null, '类型'), h('th', null, '次数'), h('th', null, '成功'), h('th', null, '平均 token'), h('th', null, '平均秒'), h('th', null, 'token/s'))),
+              h('tbody', null, rows.map(([type, s]) => h('tr', { key: type },
+                h('td', null, type), h('td', null, String(s.runs || 0)), h('td', null, String(s.ok || 0)),
+                h('td', null, String(s.avg_tokens || 0)), h('td', null, String(s.avg_seconds || 0)),
+                h('td', null, String(s.tokens_per_second || 0))))))
+            : h('div', { className: 'dsc-hint' }, '还没有批次遥测；跑一批任务后自动出现。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '异常工单', h('small', null, `${issues.length} 条`)),
+          issues.length
+            ? h('table', { className: 'dsc-table' },
+              h('thead', null, h('tr', null, h('th', null, '类型'), h('th', null, '任务'), h('th', null, '原因'), h('th', null, 'token'), h('th', null, '秒'))),
+              h('tbody', null, issues.slice(0, 20).map((x, i) => h('tr', { key: i },
+                h('td', null, x.type || ''), h('td', null, x.id || ''), h('td', null, x.reason || ''),
+                h('td', null, String(x.tokens || 0)), h('td', null, String(x.seconds || 0))))))
+            : h('div', { className: 'dsc-hint' }, '没有异常批次。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '最近操作', h('small', null, `${history.length} 条`)),
+          history.length
+            ? h('div', { className: 'dsc-hint' }, history.slice(-12).reverse().map((x) => `${x.at || ''} · ${x.id || ''} · ${x.op || ''}`).join('\n'))
+            : h('div', { className: 'dsc-hint' }, '还没有审核/接管记录。')),
       )
     }
 
@@ -1980,6 +2020,7 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'home' ? ' is-on' : ''), onClick: () => setTab('home') }, tr('tabHome')),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'workflow' ? ' is-on' : ''), onClick: () => setTab('workflow') }, tr('tabWorkflow')),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'free' ? ' is-on' : ''), onClick: () => setTab('free') }, '免费池'),
+            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'review' ? ' is-on' : ''), onClick: () => setTab('review') }, '复盘'),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'bot' ? ' is-on' : ''), onClick: () => setTab('bot') }, tr('tabBot')),
           ),
           error ? h('div', { className: 'dsc-banner err' }, error) : null,
@@ -1995,7 +2036,9 @@ window.__ModuleLoader__.load({
               ? h(WorkflowView, { snap, tr, act, busy })
               : tab === 'free'
                 ? h(FreePoolView, { snap, act, busy })
-                : h(BotView, { snap, act, busy, tr }),
+                : tab === 'review'
+                  ? h(ReviewView, { snap, act, busy })
+                  : h(BotView, { snap, act, busy, tr }),
           toast ? h('div', { className: 'dsc-toast' + (toast.tone === 'err' ? ' err' : '') }, toast.text) : null,
         ),
       )
