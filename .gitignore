@@ -1,0 +1,16 @@
+node_modules/
+*.log
+tools/dsh_config.json
+tools/notify_config.json
+tools/paid_takeover.json
+tools/token_ledger.json
+tools/token_usage.json
+tools/power_daily.json
+tools/power_status.json
+tools/*_status.json
+tools/*lock*
+*_relay/
+生成地图/
+参考/
+exports/
+*.bak-textopt-*
