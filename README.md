@@ -1,9 +1,11 @@
-# AI Console / AI 璋冨害鍙?
+# AI Console / AI 调度台
+
 ![AI Console dashboard](docs/screenshot-dashboard.png)
 
 A DSH desktop plugin that puts task scheduling, concurrency, free-pool discovery, local tools and the optional mod console into one left-sidebar panel.
 
-涓€涓?DSH 妗岄潰鎻掍欢锛氭妸浠诲姟璋冨害銆佸苟鍙戙€佸厤璐规睜銆佹湰鏈哄伐鍏峰拰鍙€夌殑妯＄粍鎺у埗鍙伴泦涓埌宸︽爮闈㈡澘銆?
+一个 DSH 桌面插件：把任务调度、并发、免费池、本机工具和可选的模组控制台集中到左栏面板。
+
 ---
 
 ## English
@@ -20,7 +22,7 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 ### Features
 
 - Task overview: code, map, texture and balance tasks with batch, progress, workers and keys
-- Concurrency matrix: local key pool 脳 models, busy and idle slots
+- Concurrency matrix: local key pool × models, busy and idle slots
 - Auto-scaling: start extra workers when idle slots exceed a threshold
 - Free-pool discovery: parse public GitHub lists into provider candidates, base URLs and free quotas
 - Map tools: wish-based naming, spawn/resource validation, diff checks
@@ -41,7 +43,7 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 ### Install
 
 1. Open DSH Desktop.
-2. Go to **Settings 鈫?Plugins**.
+2. Go to **Settings → Plugins**.
 3. Install this folder as a local bundle (or clone this repository and select the folder).
 4. Restart DSH if the left-sidebar icon does not appear.
 5. Open **AI Console** from the left sidebar.
@@ -109,49 +111,61 @@ self-check / power / resource / task
 
 ---
 
-## 涓枃
+## 中文
 
-### 杩欐槸浠€涔?
-AI 璋冨害鍙版槸涓€涓湰鏈轰紭鍏堢殑 DSH 璋冨害鎻掍欢銆傚畠瑙傚療浣犳満鍣ㄤ笂鐨勪换鍔★紝鏄剧ず褰撳墠鍝釜妯″瀷/key 妲戒綅鍦ㄥ繖锛屽苟鎻愪緵涓€涓皬鍨嬫湰鏈?API锛岃 agent銆佽剼鏈拰 QQ 鏈哄櫒浜鸿皟鐢ㄥ悓涓€濂楀伐鍏枫€?
-鏈€鍒濆彧鏄兂鍐欎釜杩涚▼瀹堟姢锛岃鍏嶈垂 AI 甯繖鍐欐ā缁勶紱鍚庢潵鍙戠幇鍏嶈垂姹犳晥鐜囦笉澶燂紝灏辨妸瀹堟姢鍋氭垚浜嗚皟搴﹀彴銆傚啀鍚庢潵涓嶆兂鐩存帴鍋氭ā缁勫唴瀹癸紝浜庢槸鎷嗘垚涓や釜鎻掍欢锛?
-- `ai-hub`锛堟湰浠撳簱锛夛細璋冨害鍙?- `task-mod`锛氬彲閫夋ā缁勬帶鍒跺彴锛岃礋璐ｅ湴鍥?璐村浘/骞宠　
+### 这是什么
 
-涓嶉渶瑕佹ā缁勭殑浜哄彧瑁呰皟搴﹀彴鍗冲彲銆?
-### 鍔熻兘
+AI 调度台是一个本机优先的 DSH 调度插件。它观察你机器上的任务，显示当前哪个模型/key 槽位在忙，并提供一个小型本机 API，让 agent、脚本和 QQ 机器人调用同一套工具。
 
-- 浠诲姟鎬昏锛氫唬鐮併€佸湴鍥俱€佽创鍥俱€佸钩琛＄殑鐘舵€併€佹壒娆°€佽繘搴︺€亀orker/key
-- 骞跺彂鐭╅樀锛氭湰鍦?key 姹?脳 妯″瀷锛屾樉绀哄疄闄呭崰鐢ㄥ拰绌洪棽妲戒綅
-- 鑷姩鎵╁睍锛氱┖闂叉Ы浣嶈秴杩囬槇鍊兼椂鎷夎捣棰濆浠诲姟
-- 鍏嶈垂姹犱睛瀵燂細瑙ｆ瀽鍏紑 GitHub 娓呭崟锛岃緭鍑?provider銆乥ase URL銆佸厤璐归搴?- 鍦板浘宸ュ叿锛氳鎰垮紡鍛藉悕銆佸嚭鐢熺偣/鐭挎牎楠屻€佸樊寮傚寲妫€鏌?- 绱犳潗宸ュ叿锛欸itHub 鍦板浘/妯＄粍鎼滅储銆佹闈㈢礌鏉愮储寮曘€乺tsbox 绀惧尯鎶撳彇
-- 娴忚鍣ㄦ悳绱細鏈満 Edge 鎴浘 + DOM 鏂囨湰锛屼笉璧版悳绱?API
-- 浠诲姟閬ユ祴锛氭寜浠诲姟绫诲瀷璁板綍 token銆佽€楁椂鍜屽紓甯?- 鑷锛氭彃浠惰娉曘€侀厤缃€乼oken 璐︽湰銆佸湴鍥捐鍒欍€佺洃鎺?- 鏈満 API锛氱粰宸ュ叿鍜?QQbot 鍏辩敤
+最初只是想写个进程守护，让免费 AI 帮忙写模组；后来发现免费池效率不够，就把守护做成了调度台。再后来不想直接做模组内容，于是拆成两个插件：
 
-### 瀹夎
+- `ai-hub`（本仓库）：调度台
+- `task-mod`：可选模组控制台，负责地图/贴图/平衡
 
-1. 鎵撳紑 DSH Desktop
-2. 杩涘叆 **璁剧疆 鈫?鎻掍欢**
-3. 閫夋嫨鏈洰褰曚綔涓烘湰鍦?bundle 瀹夎
-4. 宸︿晶娌℃湁鍥炬爣灏遍噸鍚?DSH
-5. 浠庡乏鏍忔墦寮€ **AI 璋冨害鍙?*
+不需要模组的人只装调度台即可。
+
+### 功能
+
+- 任务总览：代码、地图、贴图、平衡的状态、批次、进度、worker/key
+- 并发矩阵：本地 key 池 × 模型，显示实际占用和空闲槽位
+- 自动扩展：空闲槽位超过阈值时拉起额外任务
+- 免费池侦察：解析公开 GitHub 清单，输出 provider、base URL、免费额度
+- 地图工具：许愿式命名、出生点/矿校验、差异化检查
+- 素材工具：GitHub 地图/模组搜索、桌面素材索引、rtsbox 社区抓取
+- 浏览器搜索：本机 Edge 截图 + DOM 文本，不走搜索 API
+- 任务遥测：按任务类型记录 token、耗时和异常
+- 自检：插件语法、配置、token 账本、地图规则、监控
+- 本机 API：给工具和 QQbot 共用
+
+### 安装
+
+1. 打开 DSH Desktop
+2. 进入 **设置 → 插件**
+3. 选择本目录作为本地 bundle 安装
+4. 左侧没有图标就重启 DSH
+5. 从左栏打开 **AI 调度台**
 
 ```powershell
 git clone https://github.com/Railan1314/dsh-plugin-ds-console.git
 ```
 
-娌℃湁 npm 鏋勫缓姝ラ锛屾彃浠舵槸鏅€?ES module銆?
-### 渚濊禆
+没有 npm 构建步骤，插件是普通 ES module。
 
-- DSH Desktop锛圵indows锛?- Python 3.11
-- DSH 鑷甫 Node runtime
-- 鍙€夛細閾侀攬鎴樹簤 + Tiled/TMX 宸ュ叿
-- 鍙€夛細`task-mod` 妯＄粍鎺у埗鍙?
-### 閰嶇疆
+### 依赖
+
+- DSH Desktop（Windows）
+- Python 3.11
+- DSH 自带 Node runtime
+- 可选：铁锈战争 + Tiled/TMX 工具
+- 可选：`task-mod` 模组控制台
+
+### 配置
 
 ```text
 tools/ds_console_settings.json
 ```
 
-甯哥敤椤癸細
+常用项：
 
 ```json
 {
@@ -164,21 +178,25 @@ tools/ds_console_settings.json
 }
 ```
 
-鏈満鑴氭湰鍜屽瘑閽ヤ笉鍦ㄦ湰浠撳簱鍐呫€?*涓嶈鎻愪氦 API key銆乼oken 鎴栭€氱煡閰嶇疆銆?*
+本机脚本和密钥不在本仓库内。**不要提交 API key、token 或通知配置。**
 
-### 瀹夊叏
+### 安全
 
-- 鎻掍欢涓嶈鍙栥€佷笉鍐欏叆 API key
-- `/dsh-console/api/*` 鍙粦鏈満鍥炵幆锛屼笉鍋?token 閴存潈锛涗笉瑕佹妸 DSH 鏆撮湶鍒板叕缃?- 鍙戝竷鍓嶅垹闄?`tools/dsh_config.json`銆乣tools/notify_config.json`銆乣tools/token_ledger.json` 鍜屼釜浜烘暟鎹?- 涓汉/beta 椤圭洰锛屼笉淇濊瘉璺?DSH 鐗堟湰鍏煎
+- 插件不读取、不写入 API key
+- `/dsh-console/api/*` 只绑本机回环，不做 token 鉴权；不要把 DSH 暴露到公网
+- 发布前删除 `tools/dsh_config.json`、`tools/notify_config.json`、`tools/token_ledger.json` 和个人数据
+- 个人/beta 项目，不保证跨 DSH 版本兼容
 
-### 宸茬煡闄愬埗
+### 已知限制
 
-- 骞跺彂鐭╅樀鐨?key 鍚嶇О鏄湰鍦板埆鍚嶏紝涓嶅搴旂湡瀹炶处鍙?- 鍦板浘鏍￠獙閲岀殑鈥滅熆鈥濈洰鍓嶅彧妫€鏌ラ潪绌鸿祫婧愭牸锛屼笉鏄弗鏍艰祫婧愭睜绫诲瀷
-- 鏃犲ご Bing/鐧惧害鍙兘琚弽鐖殣钘忕粨鏋滐紝DOM 鏂囨湰浠嶄細淇濆瓨
+- 并发矩阵的 key 名称是本地别名，不对应真实账号
+- 地图校验里的“矿”目前只检查非空资源格，不是严格资源池类型
+- 无头 Bing/百度可能被反爬隐藏结果，DOM 文本仍会保存
 
-### 鏉ュ巻
+### 来历
 
-鏈€鍒濆彧鎯冲啓涓繘绋嬪畧鎶わ紝璁╁厤璐?AI 甯繖鍐欐ā缁勶紱鍚庢潵鍙戠幇鍏嶈垂姹犳晥鐜囦笉澶燂紝灏辨妸瀹堟姢鍋氭垚浜嗚皟搴﹀彴銆傚啀鍚庢潵涓嶆兂鐩存帴鍋氭ā缁勫唴瀹癸紝浜庢槸鎷嗘垚璋冨害鍙?+ 妯＄粍鎺у埗鍙般€?
+最初只想写个进程守护，让免费 AI 帮忙写模组；后来发现免费池效率不够，就把守护做成了调度台。再后来不想直接做模组内容，于是拆成调度台 + 模组控制台。
+
 ---
 
 ## License
