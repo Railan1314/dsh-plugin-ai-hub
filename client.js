@@ -17,6 +17,18 @@ window.__ModuleLoader__.load({
     const STATUS_URL = '/dsh-console/api/status'
     const ACTION_URL = '/dsh-console/api/action'
     const PANEL_ID = 'ds-console'
+    const MODEL_GROUPS = [
+      {
+        name: 'AMD 免费池',
+        models: ['V4.1', 'V4', 'V4 Vision', 'd3（V3）', 'd3-flash', 'Qwen3.8', 'GLM', 'MiMo', 'Gemma', 'MiniCPM5', 'MiniCPM-V 35B', 'MiniCPM-V 1B', 'Hy4', 'Clef'],
+      },
+      {
+        name: 'DeepSeek 官方',
+        models: ['deepseek-flash', 'deepseek-v4-pro'],
+      },
+    ]
+    const ALL_MODELS = MODEL_GROUPS.flatMap((g) => g.models)
+    const MATRIX_MODELS = ['V4.1', 'V4', 'GLM', 'Gemma']
 
     // 主机客户端给 DLC 用的模块注册表；DLC 的 client.js 往这里登记页签。
     window.__AI_HUB_UI__ = window.__AI_HUB_UI__ || (() => {
@@ -1142,6 +1154,17 @@ window.__ModuleLoader__.load({
       const bot = snap.bot || {}
       const conc = snap.concurrency || {}
       const matrix = conc.matrix || { models: [], keys: [], cells: [] }
+      const [selectedModels, setSelectedModels] = React.useState(matrix.models || [])
+      const modelKey = (matrix.models || []).join('|') + '|' + ((snap.settings || {}).displayModels || []).join('|') + '|' + JSON.stringify((snap.settings || {}).modelStates || {})
+      React.useEffect(() => {
+        const settings = snap.settings || {}
+        const planned = settings.displayModels
+        const states = settings.modelStates || {}
+        const active = (matrix.models || []).filter((m) => states[m] === 'active' || (!states[m] && m === 'V4.1'))
+        const allowed = Array.isArray(planned) && planned.length ? planned : (active.length ? active : ['V4.1'])
+        setSelectedModels((matrix.models || []).filter((m) => allowed.includes(m)))
+      }, [modelKey])
+      const visibleModels = (matrix.models || []).filter((m) => selectedModels.includes(m))
       const percent = pipeline.total > 0 ? Math.round((Number(pipeline.checked) || 0) / Number(pipeline.total) * 100) : 0
       const tabOf = { desc: 'code', map: 'map', art: 'art', balance: 'balance' }
       return h(
@@ -1171,6 +1194,7 @@ window.__ModuleLoader__.load({
             h(Metric, { label: tr('quotaTokens'), value: String((snap.quota || {}).tokens || 0) }),
             h(Metric, { label: tr('quotaTotal'), value: String((snap.quota || {}).tokensTotal || 0) }),
             h(Metric, { label: tr('quotaPerKey'), value: String((snap.quota || {}).perKey || 0), hint: tr('balanceUnits') }),
+            h(Metric, { label: '账号余额', value: (snap.quota || {}).balance || '—', hint: 'DeepSeek 付费侧（当前不用）' }),
           ),
         ),
         h(
@@ -1183,18 +1207,34 @@ window.__ModuleLoader__.load({
             h('small', null, '实际 ' + (conc.actualTotal || 0) + ' / 上限 ' + (conc.theory || 0)),
           ),
           h(
+            'div',
+            { className: 'dsc-chips', style: { marginBottom: '10px' } },
+            h('span', { className: 'dsc-hint' }, '模型：'),
+            ...(matrix.models || []).map((m) => h('button', {
+              key: m,
+              type: 'button',
+              className: 'dsc-chip' + (selectedModels.includes(m) ? ' on' : ''),
+              onClick: () => {
+                const next = selectedModels.includes(m) ? selectedModels.filter((x) => x !== m) : [...selectedModels, m]
+                if (!next.length) return
+                setSelectedModels(next)
+                act({ type: 'setting', key: 'displayModels', value: next }, '显示模型')
+              },
+            }, m + ' · ' + (selectedModels.includes(m) ? '关闭' : '显示'))),
+          ),
+          h(
             'table',
             { className: 'dsc-table dsc-matrix' },
             h('thead', null, h('tr', null,
               h('th', null, '密钥'),
-              ...(matrix.models || []).map((m) => h('th', { key: m }, m)),
+              ...visibleModels.map((m) => h('th', { key: m }, m)),
             )),
             h(
               'tbody',
               null,
               (matrix.keys || []).map((k) => h('tr', { key: k.id },
                 h('td', { title: k.tasks && k.tasks.length ? '计划：' + k.tasks.join('/') : '计划：空闲' }, h('b', null, k.label)),
-                ...(matrix.models || []).map((m) => {
+                ...visibleModels.map((m) => {
                   const cell = (matrix.cells || []).find((c) => c.key === k.id && c.model === m)
                   return h('td', { key: m, className: cell ? 'dsc-cell-busy' : '' }, cell ? `${cell.task} ${cell.busy}` : '—')
                 }),
@@ -1210,7 +1250,7 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dsc-chip' }, '调度 ', h('b', null, String((snap.schedule || {}).action || '-')), ' · 目标 ', String((snap.schedule || {}).target || 0)),
           ),
           h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
-            '格子是当前实际在跑的并行 worker（免费审计最多 12 个）；校对/修复阶段只有 1 路。上限 = 账户 ' + (conc.accounts || 0) + ' × 模型 ' + (conc.models || 0) + ' × 每模型 4 路 = ' + (conc.poolMax || 0) + '。'),
+            '格子是当前实际在跑的并行 worker；模型列可以多选显示，不选的列只是隐藏，不影响调度。上限 = 账户 × 模型 × 每模型 4 路。'),
         ),
         h(
           'section',
@@ -1702,8 +1742,26 @@ window.__ModuleLoader__.load({
         if (!window.__AI_HUB_UI__) return undefined
         return window.__AI_HUB_UI__.subscribe(setModules)
       }, [])
+      const settings = snap.settings || {}
+      const savedStates = settings.modelStates && typeof settings.modelStates === 'object' ? settings.modelStates : {}
+      const stateOf = (m) => savedStates[m] || (m === 'V4.1' ? 'active' : 'disabled')
+      const activeModels = ALL_MODELS.filter((m) => stateOf(m) === 'active')
+      const backupModels = ALL_MODELS.filter((m) => stateOf(m) === 'backup')
+      const callModels = ALL_MODELS
+      const displayModels = Array.isArray(settings.displayModels) && settings.displayModels.length ? settings.displayModels : activeModels
       const tasks = snap.tasks || []
       const opt = snap.optimizer || {}
+      const toggleSetting = (key, value) => act({ type: 'setting', key, value }, '模型模块')
+      const cycleModel = (model) => {
+        const current = stateOf(model)
+        const nextState = current === 'disabled' ? 'backup' : current === 'backup' ? 'active' : 'disabled'
+        toggleSetting('modelStates', { ...savedStates, [model]: nextState })
+      }
+      const toggleDisplay = (model) => {
+        const next = displayModels.includes(model) ? displayModels.filter((m) => m !== model) : [...displayModels, model]
+        if (!next.length) return
+        toggleSetting('displayModels', next)
+      }
       const optOn = !snap.settings || snap.settings.optimizer !== false
       const scoutOn = !snap.settings || snap.settings.scout !== false
       const scoutChecked = ((snap.freePool || {}).candidates || {}).checked_at || ''
@@ -1737,6 +1795,32 @@ window.__ModuleLoader__.load({
         !snap.pipeline || !snap.pipeline.hasDlc
           ? h('div', { className: 'dsc-banner' }, '无插件：未安装模组插件（task-mod）。工作流页仍可打开，但不会显示代码/地图/贴图/平衡任务和操作；安装后自动出现。')
           : null,
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '模型模块', h('small', null, '调用 / 显示分离')),
+          h('div', { className: 'dsc-hint' }, '三态循环：不启用 → 备选 → 启用 → 不启用；调用 = 启用 + 备选，显示只决定并发矩阵列。'),
+          h('div', { className: 'dsc-chips', style: { marginTop: '8px' } },
+            h('span', { className: 'dsc-chip' }, '启用 ', h('b', null, String(activeModels.length))),
+            h('span', { className: 'dsc-chip' }, '备选 ', h('b', null, String(backupModels.length))),
+            h('span', { className: 'dsc-chip' }, '不启用 ', h('b', null, String(ALL_MODELS.length - activeModels.length - backupModels.length)))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '8px' } }, '调用：'),
+          ...MODEL_GROUPS.map((g) => h('div', { key: 'call-' + g.name, className: 'dsc-chips', style: { marginTop: '6px' } },
+            h('span', { className: 'dsc-hint', style: { minWidth: '96px' } }, g.name + '：'),
+            ...g.models.map((m) => h('button', {
+              key: 'call-' + m, type: 'button',
+              className: 'dsc-chip' + (stateOf(m) === 'active' ? ' on' : ''),
+              onClick: () => cycleModel(m),
+            }, m + ' · ' + (stateOf(m) === 'active' ? '启用' : stateOf(m) === 'backup' ? '备选' : '不启用'))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '10px' } }, '显示（并发矩阵已接入的列）：'),
+          h('div', { className: 'dsc-chips', style: { marginTop: '6px' } },
+            h('span', { className: 'dsc-hint', style: { minWidth: '96px' } }, '矩阵：'),
+            ...MATRIX_MODELS.map((m) => h('button', {
+              key: 'display-' + m, type: 'button',
+              className: 'dsc-chip' + (displayModels.includes(m) ? ' on' : ''),
+              onClick: () => toggleDisplay(m),
+            }, m))),
+        ),
         h(
           'section',
           { className: 'dsc-card' },
@@ -1881,6 +1965,43 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function ScheduleView() {
+      const [items, setItems] = React.useState([])
+      const [error, setError] = React.useState('')
+      const load = React.useCallback(async () => {
+        try {
+          const r = await call(`/dsh-console/api/schedules?t=${Date.now()}`)
+          setItems(r.items || [])
+          setError(r.ok === false ? (r.message || 'schedule service 不可用') : '')
+        } catch (e) {
+          setError(String((e && e.message) || e))
+        }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const remove = async (item) => {
+        const r = await call('/dsh-console/api/schedules', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId: item.sessionId, id: item.id }),
+        })
+        if (r && r.deleted) load()
+      }
+      return h('section', { className: 'dsc-card' },
+        h('h3', { className: 'dsc-sec-title' }, '定时任务', h('small', null, `${items.length} 条`)),
+        error ? h('div', { className: 'dsc-banner err' }, error) : null,
+        items.length
+          ? h('table', { className: 'dsc-table' },
+            h('thead', null, h('tr', null,
+              h('th', null, '标题'), h('th', null, '类型'), h('th', null, '时间'),
+              h('th', null, '状态'), h('th', null, '操作'))),
+            h('tbody', null, items.map((x) => h('tr', { key: x.id },
+              h('td', null, x.title || x.id),
+              h('td', null, x.kind || ''),
+              h('td', null, x.scheduledAt || ''),
+              h('td', null, x.status || ''),
+              h('td', null, h('button', { type: 'button', className: 'dsc-mini', onClick: () => remove(x) }, '删除'))))))
+          : h('div', { className: 'dsc-hint' }, '没有定时任务。'))
+    }
+
     function ConsolePage(props) {
       const tr = picker(props.t)
       const [snap, setSnap] = React.useState(null)
@@ -1890,11 +2011,11 @@ window.__ModuleLoader__.load({
       const [toast, setToast] = React.useState(null)
       const [tab, setTab] = React.useState('home')
 
-      const load = React.useCallback(async () => {
+      const load = React.useCallback(async (force = false) => {
         let lastError = null
         for (let attempt = 0; attempt < 3; attempt += 1) {
           try {
-            const data = await call(`${STATUS_URL}?t=${Date.now()}`)
+            const data = await call(`${STATUS_URL}?t=${Date.now()}${force ? '&refresh=1' : ''}`)
             setSnap(data)
             setError(null)
             return
@@ -2011,7 +2132,7 @@ window.__ModuleLoader__.load({
               h('span', { className: 'dsc-pill' + ((snap.balanceLoop || {}).state === 'running' ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBalance') + ' ' + ((snap.balanceLoop || {}).state === 'running' ? tr('running') : tr('stopped'))),
               h('span', { className: 'dsc-pill' + (bot.running ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBot') + ' ' + (bot.running ? tr('running') : tr('stopped'))),
               h('button', { type: 'button', className: 'dsc-btn', onClick: () => setAutoRefresh(!autoRefresh), title: tr('autoRefreshDesc') }, tr('autoRefresh') + '：' + (autoRefresh ? tr('on') : tr('off'))),
-              h('button', { type: 'button', className: 'dsc-btn', onClick: load, disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
+              h('button', { type: 'button', className: 'dsc-btn', onClick: () => load(true), disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
             ),
           ),
           h(
@@ -2021,6 +2142,7 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'workflow' ? ' is-on' : ''), onClick: () => setTab('workflow') }, tr('tabWorkflow')),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'free' ? ' is-on' : ''), onClick: () => setTab('free') }, '免费池'),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'review' ? ' is-on' : ''), onClick: () => setTab('review') }, '复盘'),
+            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'schedule' ? ' is-on' : ''), onClick: () => setTab('schedule') }, '定时'),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'bot' ? ' is-on' : ''), onClick: () => setTab('bot') }, tr('tabBot')),
           ),
           error ? h('div', { className: 'dsc-banner err' }, error) : null,
@@ -2038,7 +2160,9 @@ window.__ModuleLoader__.load({
                 ? h(FreePoolView, { snap, act, busy })
                 : tab === 'review'
                   ? h(ReviewView, { snap, act, busy })
-                  : h(BotView, { snap, act, busy, tr }),
+                  : tab === 'schedule'
+                    ? h(ScheduleView, null)
+                    : h(BotView, { snap, act, busy, tr }),
           toast ? h('div', { className: 'dsc-toast' + (toast.tone === 'err' ? ' err' : '') }, toast.text) : null,
         ),
       )
