@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS = {
   scout: true,
   idleThreshold: 0.3,
   expandTasks: 3,
+  modelStates: {},
+  displayModels: [],
 }
 const MAX_BODY = 64 * 1024
 const QQ_BASE = (process.env.QQBOT_BASE_URL || 'https://api.bot.qq.com').replace(/\/+$/, '')
@@ -595,10 +597,13 @@ function createConsole(ctx) {
         const artKeys = Object.keys(cfg.art_ai_keys || {})
         const mapKeys = Object.keys(cfg.map_ai_keys || {})
         const balKeys = Object.keys(cfg.balance_ai_keys || {})
+        const roleCfg = readJson(join(root, 'tools', 'pipeline_config.json'), {}).key_roles || {}
+        const codeRoles = Array.isArray(roleCfg.code) ? roleCfg.code : []
         const accountsDetail = names.map((k, i) => {
           const providerId = i === 0 ? 'amd' : `amd-${i + 1}`
           const tasks = []
-          if (providers.includes(providerId)) tasks.push('流水线')
+          if (codeRoles.includes(k)) tasks.push('代码')
+          if (providers.includes(providerId) && !tasks.includes('代码')) tasks.push('流水线')
           if (artKeys.includes(k)) tasks.push('贴图')
           if (mapKeys.includes(k)) tasks.push('地图')
           if (balKeys.includes(k)) tasks.push('平衡')
@@ -1651,6 +1656,10 @@ function createConsole(ctx) {
     } else if (key === 'expandTasks') {
       const n = Number(value)
       settings[key] = Number.isFinite(n) ? Math.min(8, Math.max(1, Math.round(n))) : DEFAULT_SETTINGS[key]
+    } else if (key === 'modelStates') {
+      settings[key] = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    } else if (key === 'displayModels') {
+      settings[key] = Array.isArray(value) ? value.filter((x) => typeof x === 'string') : []
     } else {
       settings[key] = String(value)
     }
@@ -2208,10 +2217,11 @@ function createConsole(ctx) {
         } catch {
           running = false
         }
+        const rowsTitle = cache.record && cache.record.rows && cache.record.rows.title
         items.push({
           sessionId: sid,
           workspace: ws,
-          title: (cache.record && cache.record.title) || cache.title || cache.name || '',
+          title: (rowsTitle && rowsTitle.val) || (cache.record && cache.record.title) || cache.title || '',
           running,
           lastActive: mtime ? new Date(mtime).toISOString() : null,
           bytes: size,
@@ -3114,6 +3124,90 @@ function createConsole(ctx) {
       return
     }
 
+    if (req.method === 'GET' && (route === 'api/free-models' || route === 'free-models')) {
+      const q = String(url.searchParams.get('q') || '').toLowerCase()
+      const reg = readJson(join(root, 'tools', 'free_models_registry.json'), { models: [] })
+      const rows = (Array.isArray(reg.models) ? reg.models : []).filter((m) => {
+        if (!q) return true
+        return [m.source, m.provider, m.model, m.quota, m.card_required, m.status].join(' ').toLowerCase().includes(q)
+      })
+      sendJson(res, 200, { ok: true, updated: reg.updated || '', total: rows.length, models: rows.slice(0, 200) })
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/xdpool' || route === 'xdpool')) {
+      try {
+        const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
+        if (!origin) throw new Error('webServer unavailable')
+        const headers = { origin }
+        const statusRes = await fetch(`${origin}/plugins/dsh-xdpool/status?region=cn`, { headers, signal: AbortSignal.timeout(4000) })
+        if (!statusRes.ok) {
+          sendJson(res, 200, { ok: true, installed: false, message: `xdpool HTTP ${statusRes.status}` })
+          return
+        }
+        const status = await statusRes.json()
+        let aggregate = null
+        try {
+          const aggRes = await fetch(`${origin}/plugins/dsh-xdpool/aggregate`, { headers, signal: AbortSignal.timeout(4000) })
+          if (aggRes.ok) aggregate = await aggRes.json()
+        } catch {
+          aggregate = null
+        }
+        sendJson(res, 200, { ok: true, installed: true, status, aggregate })
+      } catch (e) {
+        sendJson(res, 200, { ok: true, installed: false, message: String(e && e.message ? e.message : e) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/providers' || route === 'providers')) {
+      const sources = []
+      const models = []
+      const states = readJson(join(root, 'tools', 'ds_console_settings.json'), {}).modelStates || {}
+      const push = (source, model) => {
+        const rawId = String(model.id || model.name || '')
+        if (!rawId) return
+        models.push({
+          key: `${source}:${rawId}`,
+          source,
+          id: rawId,
+          name: model.name || rawId,
+          context: model.contextWindow || model.context || null,
+          free: model.free !== false,
+          state: states[rawId] || states[model.name] || 'disabled',
+        })
+      }
+      try {
+        const cand = readJson(join(root, 'tools', 'free_pool_candidates.json'), {})
+        const providers = Array.isArray(cand.providers) ? cand.providers : []
+        sources.push({ id: 'free-pool', name: '公开免费池清单', kind: 'catalog', installed: providers.length > 0, providers: providers.length, models: 0, updated: cand.checked_at || '' })
+      } catch { /* ignore */ }
+      try {
+        const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+        const amdModels = Array.isArray(cfg.models) ? cfg.models : []
+        sources.push({ id: 'amd', name: 'AMD Radeon', kind: 'official', installed: amdModels.length > 0, providers: 1, models: amdModels.length, updated: '' })
+        for (const id of amdModels) push('amd', { id, name: id })
+      } catch { /* ignore */ }
+      try {
+        const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
+        if (origin) {
+          const r = await fetch(`${origin}/plugins/dsh-xdpool/status?region=cn`, { headers: { origin }, signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const status = await r.json()
+            const list = Array.isArray(status.models) ? status.models : []
+            sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: true, accounts: (status.accounts || []).length, models: list.length, cooling: status.cooling || 0, updated: '' })
+            for (const m of list) push('xdpool', m)
+          } else {
+            sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: false, models: 0, error: `HTTP ${r.status}` })
+          }
+        }
+      } catch (e) {
+        sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: false, models: 0, error: String(e && e.message ? e.message : e) })
+      }
+      sendJson(res, 200, { ok: true, api: '/dsh-console/api/providers', version: 1, updated: nowText(), sources, models })
+      return
+    }
+
     if (req.method === 'GET' && (route === 'api/swarm' || route === 'swarm')) {
       const data = readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] })
       const tasks = Array.isArray(data.tasks) ? data.tasks : []
@@ -3552,5 +3646,34 @@ export function apply(ctx) {
     if (globalThis.__AI_HUB__ && globalThis.__AI_HUB__.listTasks) delete globalThis.__AI_HUB__
     delete globalThis.__AI_HUB_CTX__
   }, 'ai-hub: task registry')
+  const sourceTool = (name, description, parameterName, sourceName) => {
+    const parameters = parameterName
+      ? { [parameterName]: { type: 'string', required: true, description: '搜索查询或 URL' } }
+      : {}
+    return ctx.tools.register({
+      name,
+      description,
+      timeoutMs: 60000,
+      parameters,
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
+      execute(args) {
+        const base = resolveRoot()
+        const argv = ['-X', 'utf8', join(base, 'tools', 'fetch_sources.py'), sourceName || name]
+        if (parameterName) argv.push(String(args[parameterName] || ''))
+        else argv.push('test')
+        try {
+          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 })
+        } catch (error) {
+          return `SOURCE_ERROR: ${String((error && error.stderr) || (error && error.message) || error).slice(0, 4000)}`
+        }
+      },
+    })
+  }
+  sourceTool('free_search_test', '检查 exa / tavily / anysearch 是否可用，缺 key 会显式列出。', '', 'free_search_test')
+  sourceTool('multi_search', '用至少两个可用引擎交叉验证一个查询。', 'query', 'multi_search')
+  sourceTool('exa', '英文深挖搜索（exa）。', 'query', 'exa')
+  sourceTool('tavily', '中文/实践线搜索（tavily）。', 'query', 'tavily')
+  sourceTool('anysearch', '兜底搜索（anysearch）。', 'query', 'anysearch')
+  sourceTool('vine_research', '批量版顺藤摸瓜：四向 query、学术/实践分线、结案占位。', 'query', 'vine')
   createConsole(ctx).install()
 }
