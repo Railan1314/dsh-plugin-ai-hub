@@ -10,6 +10,7 @@
  * 只用 node: 内置模块，不依赖第三方包。
  */
 import { execFile, execFileSync, spawn } from 'node:child_process'
+import { request as httpsRequest } from 'node:https'
 import { zstdDecompressSync } from 'node:zlib'
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -40,6 +41,9 @@ const DEFAULT_SETTINGS = {
   scout: true,
   idleThreshold: 0.3,
   expandTasks: 3,
+  modelStates: {},
+  displayModels: [],
+  opencodeModelStates: {},
 }
 const MAX_BODY = 64 * 1024
 const QQ_BASE = (process.env.QQBOT_BASE_URL || 'https://api.bot.qq.com').replace(/\/+$/, '')
@@ -48,6 +52,9 @@ const BOT_ROOT = 'C:\\Users\\Railan\\Desktop\\DS-AI'
 const BOT_DIR = join(BOT_ROOT, 'bot')
 const QQBOT_PROFILE_DIR = join(process.env.USERPROFILE || 'C:\\Users\\Railan', '.dsh', 'profiles', 'qqbot')
 const QQ_ACCESS_MODES = ['open', 'allowlist', 'disabled']
+const OPENCODE_FREE_CACHE = { at: 0, data: null }
+const PROGRESS_CACHE = { at: 0, data: null }
+const SESSION_LIST_CACHE = { at: 0, value: null }
 
 /* ------------------------------------------------------------------ */
 /* 小工具                                                              */
@@ -379,8 +386,8 @@ function createConsole(ctx) {
     return { pid: lock.pid, started: lock.started, alive: false }
   }
 
-  function snapshot() {
-    refreshDshCount(true)
+  function snapshot(force = false) {
+    refreshDshCount(force)
     const relay = relayDir()
     const status = readJson(join(relay, 'status.json'), {})
     const saved = readJson(join(relay, 'state.json'), {})
@@ -516,6 +523,8 @@ function createConsole(ctx) {
         art: tailLines(join(logDir(), '贴图任务.md'), 20),
       },
       quota: quotaInfo(),
+      jobs: Object.values(loadJobs().jobs).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 100),
+      tokenBreakdown: tokenBreakdown(),
       balanceLoop: (() => {
         const task = balanceTask()
         return { state: task.state, round: task.round, phase: task.phase, updated: task.updated || '' }
@@ -589,15 +598,29 @@ function createConsole(ctx) {
           { id: 'ai', label: 'AI 分析', actual: actual.ai, max: Number(quotas.flex) || 0 },
           { id: 'flex', label: '扩展/其他', actual: actual.flex, max: Number(quotas.flex) || 0 },
         ]
-        const names = Object.keys(cfg.amd_api_keys || {})
+        const names = [...Object.keys(cfg.amd_api_keys || {}), ...Object.keys(cfg.extra_api_keys || {})]
         const providers = Array.isArray(cfg.amd_providers) ? cfg.amd_providers : []
         const artKeys = Object.keys(cfg.art_ai_keys || {})
         const mapKeys = Object.keys(cfg.map_ai_keys || {})
         const balKeys = Object.keys(cfg.balance_ai_keys || {})
+        const roleCfg = readJson(join(root, 'tools', 'pipeline_config.json'), {}).key_roles || {}
+        const codeRoles = Array.isArray(roleCfg.code) ? roleCfg.code : []
+        const configuredVendors = cfg.key_providers || {}
+        const vendorOf = (k) => {
+          if (configuredVendors[k]) return String(configuredVendors[k])
+          const s = String(k).toUpperCase()
+          if (s.includes('WORKBUDDY') || s.includes('WORK_BUDDY')) return 'WorkBuddy'
+          if (s.includes('HUAWEI') || s.includes('HARMONY')) return '华为果办'
+          return 'AMD'
+        }
         const accountsDetail = names.map((k, i) => {
           const providerId = i === 0 ? 'amd' : `amd-${i + 1}`
+          const vendor = vendorOf(k)
+          const vendorIndex = names.slice(0, i).filter((x) => vendorOf(x) === vendor).length + 1
+          const label = vendor === 'AMD' ? `amd${i + 1}` : `${vendor.toLowerCase().replace(/[^a-z0-9]/g, '') || 'key'}${vendorIndex}`
           const tasks = []
-          if (providers.includes(providerId)) tasks.push('流水线')
+          if (codeRoles.includes(k)) tasks.push('代码')
+          if (providers.includes(providerId) && !tasks.includes('代码')) tasks.push('流水线')
           if (artKeys.includes(k)) tasks.push('贴图')
           if (mapKeys.includes(k)) tasks.push('地图')
           if (balKeys.includes(k)) tasks.push('平衡')
@@ -605,7 +628,7 @@ function createConsole(ctx) {
           if ((mapFlowNow.state === 'running' || mapFlowNow.state === 'waiting') && Array.isArray(mapFlowNow.key_names) && mapFlowNow.key_names.includes(k)) {
             if (!tasks.includes('地图')) tasks.push('地图')
           }
-          return { key: k, label: `amd${i + 1}`, tasks }
+          return { key: k, label, provider: vendor, tasks }
         })
 
         const shortModel = (id) => {
@@ -686,6 +709,16 @@ function createConsole(ctx) {
           }
           if (used === 0) addCell(names[names.length - 1], '扩展/其他', actual.flex)
         }
+        const extraNames = Object.keys(cfg.extra_api_keys || {})
+        const matrixModels = [...new Set([...modelIds, ...(extraNames.length ? ['DeepSeek-V4.1'] : [])])]
+        const providerGroups = []
+        for (const a of accountsDetail) {
+          let group = providerGroups.find((x) => x.name === a.provider)
+          if (!group) {
+            group = { name: a.provider, models: a.provider === 'AMD' ? modelIds : ['DeepSeek-V4.1'] }
+            providerGroups.push(group)
+          }
+        }
 
         return {
           pipeline: actual.code,
@@ -699,10 +732,12 @@ function createConsole(ctx) {
           poolMax,
           theory,
           actualTotal: items.reduce((a, b) => a + b.actual, 0),
+          slotCapacity: accounts * 4,
+          slotIdle: Math.max(0, accounts * 4 - items.reduce((a, b) => a + b.actual, 0)),
           items,
           pipelineWorkers,
           parallelActive,
-          matrix: { models: modelIds, keys: accountsDetail.map((a) => ({ id: a.label, label: a.label, tasks: a.tasks })), cells },
+          matrix: { models: matrixModels, providers: providerGroups, keys: accountsDetail.map((a) => ({ id: a.label, label: a.label, provider: a.provider, tasks: a.tasks })), cells },
           live: state.dshCount,
           liveByProfile: state.dshByProfile,
           accountsDetail,
@@ -789,13 +824,22 @@ function createConsole(ctx) {
         }
         return { sim: sim, design: design, restrictionsText, rankDelta: readJson(join(balanceDir, '_relay', 'rank_delta.json'), {}), rankChanges: readJson(join(balanceDir, '_relay', 'rank_changes.json'), {}) }
       })(),
-      freePool: {
-        candidates: readJson(join(root, 'tools', 'free_pool_candidates.json'), null),
-        codePlan: readJson(join(process.env.USERPROFILE || 'C:\\Users\\Railan', 'Desktop', '任务', '代码', '02_修改', '_relay', '调度分类.json'), null),
-      },
+      freePool: (() => {
+        const cur = readJson(join(root, 'tools', 'free_pool_candidates.json'), null)
+        const bak = readJson(join(root, 'tools', 'free_pool_candidates.bak.json'), null)
+        const candidates = cur && Array.isArray(cur.providers) && cur.providers.length ? cur : (bak || cur)
+        return {
+          candidates,
+          codePlan: readJson(join(process.env.USERPROFILE || 'C:\\Users\\Railan', 'Desktop', '任务', '代码', '02_修改', '_relay', '调度分类.json'), null),
+        }
+      })(),
       scheduler: readJson(join(root, 'tools', 'scheduler_status.json'), null),
       assets: readJson(join(root, 'tools', 'assets_index.json'), null),
       community: readJson(join(root, 'tools', 'community_assets.json'), null),
+      swarm: readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] }),
+      telemetry: readJson(join(root, 'tools', 'telemetry_summary.json'), null),
+      taskHistory: taskHistory(),
+      models: readJson(join(root, 'tools', 'dsh_config.json'), {}).models || [],
       selfCheck: readJson(join(root, 'tools', 'self_check.json'), null),
       pluginVersion: readJson(join(root, '插件', 'ai-hub', 'package.json'), {}).version || '',
       autoscale: readJson(join(root, 'tools', 'autoscale_status.json'), null),
@@ -1138,6 +1182,49 @@ function createConsole(ctx) {
   let quotaCacheAt = 0
   let quotaCacheValue = null
 
+  let balanceCacheAt = 0
+  let balanceCacheText = ''
+
+  /** 账号余额（DeepSeek 付费侧）：读 quota.ps1 写的缓存，超 5 分钟就自己查一次。 */
+  function accountBalanceText() {
+    if (Date.now() - balanceCacheAt < 5000) return balanceCacheText
+    balanceCacheAt = Date.now()
+    const cached = readJson(join(root, 'tools', 'account_balance.json'), {})
+    const age = Date.now() - (Date.parse(String(cached.updated || '').replace(' ', 'T')) || 0)
+    if (cached.balance && age < 5 * 60 * 1000) {
+      balanceCacheText = String(cached.balance)
+      return balanceCacheText
+    }
+    try {
+      const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+      const key = String(cfg.api_key || '')
+      if (!key) throw new Error('no api_key')
+      const req = httpsRequest({
+        hostname: 'api.deepseek.com', path: '/user/balance', method: 'GET', timeout: 8000,
+        headers: { Authorization: `Bearer ${key}` },
+      }, (res) => {
+        let raw = ''
+        res.setEncoding('utf8')
+        res.on('data', (chunk) => { raw += chunk })
+        res.on('end', () => {
+          try {
+            const info = (JSON.parse(raw).balance_infos || [])[0]
+            if (info) {
+              const symbol = info.currency === 'CNY' ? '¥' : `${info.currency} `
+              balanceCacheText = `${symbol}${info.total_balance}`
+              writeJson(join(root, 'tools', 'account_balance.json'), { balance: balanceCacheText, updated: nowText() })
+            }
+          } catch { /* ignore */ }
+        })
+      })
+      req.on('timeout', () => req.destroy())
+      req.on('error', () => {})
+      req.end()
+    } catch { /* ignore */ }
+    if (!balanceCacheText && cached.balance) balanceCacheText = String(cached.balance)
+    return balanceCacheText
+  }
+
   const tokenLedgerPath = join(root, 'tools', 'token_ledger.json')
   const TOKEN_BYTES_PER_TOKEN = 3.5
 
@@ -1165,6 +1252,21 @@ function createConsole(ctx) {
 
   function quotaInfo() {
     if (quotaCacheValue && Date.now() - quotaCacheAt < 60000) return quotaCacheValue
+    if (!quotaCacheValue) {
+      try {
+        const qPath = join(root, 'tools', 'quota_cache.json')
+        if (Date.now() - statSync(qPath).mtimeMs < 300000) {
+          const q = readJson(qPath, null)
+          if (q && Number.isFinite(Number(q.keys))) {
+            quotaCacheValue = q
+            quotaCacheAt = Date.now()
+            return q
+          }
+        }
+      } catch {
+        /* no disk cache */
+      }
+    }
     const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
     const keys = Object.keys(cfg.amd_api_keys || {})
     const providers = Array.isArray(cfg.amd_providers) ? cfg.amd_providers : []
@@ -1276,10 +1378,133 @@ function createConsole(ctx) {
       firstUse: firstUse ? dayOf(firstUse) : String(ledger.baselineAt || '').slice(0, 10),
       perKey: keys.length ? Math.round(tokens / keys.length) : 0,
       updated: nowText(),
+      balance: accountBalanceText(),
       note: `累计 = 清理前基线 ${Math.round(baseline / 10000)}w + 之后新会话 ${Math.round(entryTokens / 10000)}w；只增不减。AMD 无余额接口，容量等跑满/被限流后反推`,
     }
     quotaCacheAt = Date.now()
+    writeJson(join(root, 'tools', 'quota_cache.json'), quotaCacheValue)
     return quotaCacheValue
+  }
+
+  let tokenBreakdownCache = null
+  let tokenBreakdownAt = 0
+
+  function tokenBreakdown() {
+    if (tokenBreakdownCache && Date.now() - tokenBreakdownAt < 60000) return tokenBreakdownCache
+    // 冷启动优先读上一次快照，避免首屏扫描全部 session 投影。
+    if (!tokenBreakdownCache) {
+      try {
+        const cachedPath = join(root, 'tools', 'token_breakdown.json')
+        const age = Date.now() - statSync(cachedPath).mtimeMs
+        let ledgerAt = 0
+        try { ledgerAt = statSync(join(root, 'tools', 'opencode_ledger.json')).mtimeMs } catch { ledgerAt = 0 }
+        let usageAt = 0
+        try { usageAt = statSync(join(root, 'tools', 'opencode_usage.json')).mtimeMs } catch { usageAt = 0 }
+        const cached = readJson(cachedPath, null)
+        if (age < 300000 && statSync(cachedPath).mtimeMs >= Math.max(ledgerAt, usageAt) && cached && Array.isArray(cached.providers)) {
+          tokenBreakdownCache = cached
+          tokenBreakdownAt = Date.now()
+          return cached
+        }
+      } catch {
+        /* no cache */
+      }
+    }
+    const ledger = loadTokenLedger()
+    const base = join(process.env.USERPROFILE || '', '.dsh', 'storages', 'session_projcache', 'sessions')
+    const providers = {}
+    const days = {}
+    const vendor = (p, cwd) => {
+      const s = String(p || '').toLowerCase()
+      if (s.startsWith('amd')) return 'AMD'
+      if (s.includes('deepseek')) return 'DeepSeek'
+      if (s.includes('opencode')) return 'OpenCode'
+      if (s.includes('openai')) return 'OpenAI'
+      if (s.includes('xdpool') || s.includes('workbuddy')) return 'XD Pool'
+      const c = String(cwd || '').toLowerCase()
+      if (c.includes('opencode_workspaces')) return 'OpenCode'
+      if (c.includes('paid') || c.includes('deepseek')) return 'DeepSeek'
+      // 早期免费审计会话没有 modelSelection，默认归 AMD，不再单列 unknown。
+      return 'AMD'
+    }
+    const add = (target, key, tokens) => {
+      target[key] = target[key] || { tokens: 0, sessions: 0 }
+      target[key].tokens += tokens
+      target[key].sessions += 1
+    }
+    let files = []
+    try {
+      files = readdirSync(base).filter((x) => x.endsWith('.json'))
+    } catch {
+      files = []
+    }
+    for (const name of files) {
+      let rec
+      try {
+        rec = JSON.parse(readFileSync(join(base, name), 'utf8')).record || {}
+      } catch {
+        continue
+      }
+      const rows = rec.rows || {}
+      const u = (rows.tokenUsage && rows.tokenUsage.val && rows.tokenUsage.val.totals) || {}
+      const tokens = ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
+        .reduce((a, k) => a + (Number(u[k]) || 0), 0)
+      if (!tokens) continue
+      const model = (rows.modelSelection && rows.modelSelection.val && rows.modelSelection.val.lastUsed) || {}
+      const p = vendor(model.provider, rec.identity && rec.identity.cwd)
+      add(providers, p, tokens)
+      providers[p].model = model.model || providers[p].model || ''
+      const sid = name.replace(/\.json$/, '')
+      const meta = ledger.entries[sid] || {}
+      const d = meta.date || new Date(Number(rec.identity && rec.identity.createdAt) || Date.now()).toISOString().slice(0, 10)
+      days[d] = days[d] || { tokens: 0, providers: {} }
+      days[d].tokens += tokens
+      days[d].providers[p] = (days[d].providers[p] || 0) + tokens
+    }
+    const opencodeUsage = readJson(join(root, 'tools', 'opencode_usage.json'), { entries: [] })
+    const bridgeLedger = readJson(join(root, 'tools', 'opencode_ledger.json'), { entries: [] })
+    const usageJobs = new Set((opencodeUsage.entries || []).map((x) => x.jobId).filter(Boolean))
+    for (const entry of bridgeLedger.entries || []) {
+      const tokens = Number(entry.tokens) || 0
+      if (!tokens) continue
+      add(providers, 'OpenCode', tokens)
+      providers.OpenCode.model = entry.model || providers.OpenCode.model || ''
+      const d = entry.date || new Date().toISOString().slice(0, 10)
+      days[d] = days[d] || { tokens: 0, providers: {} }
+      days[d].tokens += tokens
+      days[d].providers.OpenCode = (days[d].providers.OpenCode || 0) + tokens
+    }
+    for (const job of Object.values(loadJobs().jobs)) {
+      if (job.type !== 'opencode' || job.state !== 'succeeded' || usageJobs.has(job.id)) continue
+      try {
+        const parsed = JSON.parse(job.result || '{}')
+        const text = String(parsed.text || '')
+        if (text) opencodeUsage.entries.push({ jobId: job.id, session: parsed.session || '', model: parsed.model || '', tokens: Math.max(1, Math.round(text.length / 4)), date: String(job.finishedAt || job.createdAt).slice(0, 10) })
+      } catch {
+        /* ignore */
+      }
+    }
+    for (const entry of opencodeUsage.entries || []) {
+      const tokens = Number(entry.tokens) || 0
+      if (!tokens) continue
+      add(providers, 'OpenCode', tokens)
+      providers.OpenCode.model = entry.model || providers.OpenCode.model || ''
+      const d = entry.date || new Date().toISOString().slice(0, 10)
+      days[d] = days[d] || { tokens: 0, providers: {} }
+      days[d].tokens += tokens
+      days[d].providers.OpenCode = (days[d].providers.OpenCode || 0) + tokens
+    }
+    const total = Object.values(providers).reduce((a, x) => a + x.tokens, 0)
+    tokenBreakdownCache = {
+      updated: nowText(),
+      total,
+      providers: Object.entries(providers).sort((a, b) => b[1].tokens - a[1].tokens).map(([name, x]) => ({ name, ...x })),
+      days: Object.entries(days).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 31).map(([date, x]) => ({ date, ...x })),
+      note: '按会话投影里的 tokenUsage 汇总；每日按会话最后活动日期归档，不是逐请求流水。',
+    }
+    writeJson(join(root, 'tools', 'token_breakdown.json'), tokenBreakdownCache)
+    tokenBreakdownAt = Date.now()
+    return tokenBreakdownCache
   }
 
   const balanceDir = join(root, '..', '任务', '平衡', '平衡项目')
@@ -1600,6 +1825,10 @@ function createConsole(ctx) {
     } else if (key === 'expandTasks') {
       const n = Number(value)
       settings[key] = Number.isFinite(n) ? Math.min(8, Math.max(1, Math.round(n))) : DEFAULT_SETTINGS[key]
+    } else if (key === 'modelStates' || key === 'opencodeModelStates') {
+      settings[key] = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    } else if (key === 'displayModels') {
+      settings[key] = Array.isArray(value) ? value.filter((x) => typeof x === 'string') : []
     } else {
       settings[key] = String(value)
     }
@@ -1618,6 +1847,347 @@ function createConsole(ctx) {
     }
     saveSettings()
     return { ok: true, message: '已保存' }
+  }
+
+  function ensureDshProvider(vendor, keyName, apiKey, baseUrl, model, bridge = false) {
+    const id = String(vendor || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'custom'
+    if (id === 'amd') return { ok: true, provider: 'amd', note: 'AMD 已有 provider，追加 key 后走 amd 路由' }
+    const base = String(baseUrl || '').trim() || (id === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')
+    if (!base) return { ok: false, message: '这个供应商需要填写 API 地址' }
+    const modelId = String(model || '').trim() || (id === 'opencode' ? 'deepseek-v4.1-flash-free' : '')
+    if (!modelId) return { ok: false, message: '这个供应商需要填写模型 ID' }
+    const envName = String(keyName || '').toUpperCase().replace(/[^A-Z0-9]+/g, '_')
+    const patchPath = join(process.env.USERPROFILE || '', '.dsh', 'profiles', 'desktop', 'cordis.patch.yml')
+    let text = ''
+    try {
+      text = readFileSync(patchPath, 'utf8')
+    } catch {
+      return { ok: false, message: '读不到 desktop profile 配置' }
+    }
+    process.env[envName] = String(apiKey || '')
+    if (new RegExp(`^\\s{6}${id}:\\s*$`, 'm').test(text)) {
+      return { ok: true, provider: id, needsRestart: true, note: 'provider 已存在，只更新 key' }
+    }
+    const lines = text.split(/\r?\n/)
+    const start = lines.findIndex((line) => /^-\s+id:\s*llm-pi-ai\s*$/.test(line))
+    if (start < 0) return { ok: false, message: 'profile 里没有 llm-pi-ai 配置' }
+    let end = lines.length
+    for (let i = start + 1; i < lines.length; i += 1) {
+      if (/^-\s+id:/.test(lines[i])) { end = i; break }
+    }
+    const block = [
+      `      ${id}:`,
+      `        displayName: ${vendor}`,
+      ...(bridge ? [] : [`        apiKeyEnv: ${envName}`]),
+      '        api: openai-completions',
+      `        baseURL: ${base}`,
+      '        models:',
+      `          - id: ${modelId}`,
+      `            name: ${modelId}`,
+      '            contextWindow: 200000',
+      '            maxTokens: 32000',
+      '            input: [ text ]',
+    ]
+    lines.splice(end, 0, ...block)
+    writeFileSync(patchPath, lines.join('\n'), 'utf8')
+    return { ok: true, provider: id, needsRestart: true, note: `已加入 DSH provider ${id}；重启 DSH 后在模型选择里出现` }
+  }
+
+  function addApiKey(provider, rawKey, baseUrl, model) {
+    const vendor = String(provider || '').trim()
+    const key = String(rawKey || '').trim()
+    if (!vendor || !key) return { ok: false, message: '供应商和密钥都要填' }
+    if (key.length < 8) return { ok: false, message: '密钥太短，像是不完整' }
+    const cfgPath = join(root, 'tools', 'dsh_config.json')
+    const cfg = readJson(cfgPath, {})
+    const amd = /^amd$/i.test(vendor)
+    const bucket = amd ? (cfg.amd_api_keys = cfg.amd_api_keys || {}) : (cfg.extra_api_keys = cfg.extra_api_keys || {})
+    const prefix = vendor.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'CUSTOM'
+    let n = amd ? Object.keys(bucket).length + 1 : 1
+    while (bucket[`${prefix}_API_KEY${n > 1 ? '_' + n : ''}`]) n += 1
+    const name = amd ? `AMD_API_KEY${n > 1 ? '_' + n : ''}` : `${prefix}_API_KEY${n > 1 ? '_' + n : ''}`
+    bucket[name] = key
+    cfg.key_providers = cfg.key_providers || {}
+    cfg.key_providers[name] = vendor
+    writeJson(cfgPath, cfg)
+    let registered
+    let probe = null
+    try {
+      const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'provider_probe.py'), '--base-url', String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')), '--key', key, '--model', String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))], { cwd: root, encoding: 'utf8', timeout: 90000 })
+      probe = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
+    } catch (error) {
+      probe = { ok: false, mode: 'direct', reason: String((error && error.message) || error).slice(0, 200) }
+    }
+    if (probe && probe.mode === 'bridge' && String(vendor).toLowerCase().includes('opencode')) {
+      try {
+        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'opencode_bridge.py'), '--port', '8799'], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true }).unref()
+      } catch {
+        /* bridge may already be running */
+      }
+      registered = ensureDshProvider(vendor, name, key, 'http://127.0.0.1:8799/v1', String(model || 'deepseek-v4.1-flash-free'), true)
+      if (registered.ok) registered.note = '直连被限流，已注册本地 OpenCode 桥接；重启 DSH 后可选'
+    } else {
+      registered = ensureDshProvider(vendor, name, key, baseUrl, model)
+    }
+    let iq = null
+    if (!amd) {
+      try {
+        const iqBase = probe && probe.mode === 'bridge' ? 'http://127.0.0.1:8799/v1' : String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : ''))
+        const iqModel = String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))
+        if (iqBase && iqModel) {
+          const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'iq_probe.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor], { cwd: root, encoding: 'utf8', timeout: 300000 })
+          iq = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
+          const latest = readJson(cfgPath, {})
+          latest.model_iq = latest.model_iq || {}
+          latest.model_iq[name] = { score: iq.score, model: iqModel, provider: vendor, at: nowText() }
+          writeJson(cfgPath, latest)
+          try {
+            const evalArgs = ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor]
+            const evalProc = spawn(settings.python || 'python', evalArgs, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
+            evalProc.unref()
+          } catch {
+            /* 扩展评测失败不阻塞接入 */
+          }
+        }
+      } catch (error) {
+        iq = { ok: false, error: String((error && error.message) || error).slice(0, 300) }
+      }
+    }
+    return { ok: registered.ok, name, provider: vendor, masked: `${key.slice(0, 4)}…${key.slice(-4)}`, needsRestart: registered.needsRestart, mode: probe && probe.mode, probe, iq, message: `${registered.ok ? '已存 key' : '已存 key，但 provider 未注册'}：${registered.message || registered.note || ''}${iq && iq.score !== undefined ? `；IQ ${iq.score}/100` : ''}` }
+  }
+
+  /* ---------- 异步任务（job 总线） ---------- */
+
+  const jobsPath = join(root, 'tools', 'async_jobs.json')
+  const jobsLogPath = join(root, 'tools', 'async_jobs.log')
+  let jobsCache = null
+
+  function loadJobs() {
+    if (jobsCache && Date.now() - jobsCache.at < 2000) return jobsCache.data
+    const data = readJson(jobsPath, null) || { version: 1, jobs: {} }
+    data.jobs = data.jobs && typeof data.jobs === 'object' ? data.jobs : {}
+    jobsCache = { at: Date.now(), data }
+    return data
+  }
+
+  function saveJobs(data) {
+    writeJson(jobsPath, data)
+    jobsCache = { at: Date.now(), data }
+  }
+
+  function jobLog(text) {
+    try {
+      appendFileSync(jobsLogPath, `[${nowText()}] ${text}\n`, 'utf8')
+      const lines = readFileSync(jobsLogPath, 'utf8').split(/\r?\n/)
+      if (lines.length > 500) writeFileSync(jobsLogPath, lines.slice(-500).join('\n'), 'utf8')
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function pidAlive(pid) {
+    if (!pid) return false
+    try {
+      process.kill(Number(pid), 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  function jobPublic(job) {
+    return { ...job }
+  }
+
+  function updateJob(id, patch) {
+    const data = loadJobs()
+    const job = data.jobs[id]
+    if (!job) return null
+    Object.assign(job, patch, { updatedAt: new Date().toISOString() })
+    saveJobs(data)
+    return job
+  }
+
+  async function finishJob(id, state, extra = {}) {
+    const data = loadJobs()
+    const job = data.jobs[id]
+    if (!job) return null
+    job.state = state
+    job.finishedAt = new Date().toISOString()
+    job.updatedAt = job.finishedAt
+    Object.assign(job, extra)
+    saveJobs(data)
+    PROGRESS_CACHE.at = 0
+    jobLog(`${id} ${state} ${job.result || job.error || ''}`.slice(0, 500))
+    if (job.parentSession) {
+      const text = `[job ${id}] ${state}${job.result ? `\n${String(job.result).slice(0, 1500)}` : ''}${job.error ? `\n${job.error}` : ''}`
+      injectMessage({ sessionId: job.parentSession, text }).catch((error) => jobLog(`${id} inject failed: ${String((error && error.message) || error)}`))
+    }
+    return job
+  }
+
+  function tickJobs() {
+    const data = loadJobs()
+    let changed = false
+    for (const job of Object.values(data.jobs)) {
+      if (job.state === 'succeeded' && job.result) {
+        try {
+          const parsed = JSON.parse(job.result)
+          if (parsed.returncode !== undefined && Number(parsed.returncode) !== 0) {
+            job.state = 'failed'
+            job.error = String(parsed.stderr || parsed.text || `worker returncode ${parsed.returncode}`).slice(-800)
+            job.updatedAt = new Date().toISOString()
+            jobLog(`${job.id} repaired failed rc=${parsed.returncode}`)
+            changed = true
+          }
+        } catch {
+          /* non-json success */
+        }
+      }
+    }
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const terminal = new Set(['succeeded', 'failed', 'cancelled', 'stale'])
+    for (const job of Object.values(data.jobs)) {
+      const at = Date.parse(job.finishedAt || job.updatedAt || job.createdAt || 0)
+      if (terminal.has(job.state) && at && at < cutoff) {
+        delete data.jobs[job.id]
+        changed = true
+      }
+    }
+    const ids = Object.keys(data.jobs)
+    if (ids.length > 500) {
+      ids.sort((a, b) => String(data.jobs[a].createdAt || '').localeCompare(String(data.jobs[b].createdAt || '')))
+      for (const id of ids.slice(0, ids.length - 500)) delete data.jobs[id]
+      changed = true
+    }
+    for (const job of Object.values(data.jobs)) {
+      if (job.state !== 'running') continue
+      const age = Date.now() - Date.parse(job.updatedAt || job.startedAt || job.createdAt || Date.now())
+      if (job.pid && !pidAlive(job.pid)) {
+        const resultPath = job.meta && job.meta.resultFile
+        let result = ''
+        try {
+          if (resultPath && existsSync(resultPath)) result = readFileSync(resultPath, 'utf8').slice(0, 4000)
+        } catch {
+          /* ignore */
+        }
+        job.state = result ? 'succeeded' : 'failed'
+        job.finishedAt = new Date().toISOString()
+        job.updatedAt = job.finishedAt
+        if (result) job.result = result
+        else job.error = job.error || '进程退出但未找到结果文件'
+        if (result) {
+          try {
+            const parsed = JSON.parse(result)
+            if (parsed.returncode !== undefined && Number(parsed.returncode) !== 0) {
+              job.state = 'failed'
+              job.error = String(parsed.stderr || parsed.text || `worker returncode ${parsed.returncode}`).slice(-800)
+            } else if (String(parsed.text || '').trim().length === 0 && !(Array.isArray(parsed.copied) && parsed.copied.length)) {
+              job.state = 'failed'
+              job.error = 'worker 完成但没有输出或产物'
+            }
+            const usage = parsed.usage || {}
+            const tokens = Number(usage.total || 0) || (Number(usage.input || 0) + Number(usage.output || 0)) || Math.max(1, Math.round(String(parsed.text || '').length / 4))
+            if (tokens > 0) {
+              const uPath = join(root, 'tools', 'opencode_usage.json')
+              const uData = readJson(uPath, { entries: [] })
+              uData.entries = Array.isArray(uData.entries) ? uData.entries : []
+              if (!uData.entries.some((x) => x.jobId === job.id || (parsed.session && x.session === parsed.session))) {
+                uData.entries.push({ jobId: job.id, session: parsed.session || '', model: parsed.model || '', tokens, date: new Date().toISOString().slice(0, 10) })
+                uData.updated = nowText()
+                writeJson(uPath, uData)
+              }
+            }
+          } catch {
+            /* result may not be JSON */
+          }
+        }
+        changed = true
+        jobLog(`${job.id} ${job.state}${result ? ' result-found' : ''}`)
+      } else if (job.pid && age > Number(job.timeoutMinutes || 30) * 60 * 1000) {
+        job.state = 'stale'
+        job.error = job.error || '超过超时时间且没有完成事件'
+        job.updatedAt = new Date().toISOString()
+        changed = true
+        jobLog(`${job.id} stale (timeout)`)
+      }
+    }
+    if (changed) saveJobs(data)
+    if (changed) PROGRESS_CACHE.at = 0
+  }
+
+  function createJob(payload) {
+    const data = loadJobs()
+    const idem = String(payload.idempotencyKey || '').trim()
+    if (idem) {
+      const old = Object.values(data.jobs).find((j) => j.idempotencyKey === idem)
+      if (old) return { job: jobPublic(old), duplicate: true }
+    }
+    const id = `job-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+    const type = String(payload.type || 'external')
+    const job = {
+      id,
+      type,
+      title: String(payload.title || type),
+      state: 'queued',
+      createdAt: new Date().toISOString(),
+      startedAt: null,
+      finishedAt: null,
+      updatedAt: new Date().toISOString(),
+      parentSession: payload.parentSession ? String(payload.parentSession) : null,
+      idempotencyKey: idem || null,
+      pid: null,
+      resultRef: null,
+      result: null,
+      error: null,
+      meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    }
+    if (payload.model) job.meta.model = String(payload.model)
+    if (payload.account) job.meta.account = String(payload.account)
+    data.jobs[id] = job
+    if (type === 'opencode' || type === 'subagent') {
+      const workspace = join(root, '..', '任务', 'opencode_workspaces', id)
+      job.meta.workspace = workspace
+      job.meta.resultFile = join(workspace, 'opencode_result.json')
+      const args = ['-X', 'utf8', join(root, 'tools', 'opencode_runner.py'), '--task', job.title, '--workspace', workspace]
+      for (const item of payload.copy || []) args.push('--copy', String(item))
+      args.push('--model', String(payload.model || 'opencode/big-pickle'))
+      if (payload.account) args.push('--account', String(payload.account))
+      args.push('--prompt', String(payload.prompt || ''))
+      try {
+        const proc = spawn(settings.python || 'python', args, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
+        proc.unref()
+        job.pid = proc.pid
+        job.state = 'running'
+        job.startedAt = new Date().toISOString()
+        job.updatedAt = job.startedAt
+      } catch (error) {
+        job.state = 'failed'
+        job.error = String((error && error.message) || error)
+      }
+    }
+    if (type === 'free') {
+      const workspace = join(root, '..', '任务', 'opencode_workspaces', id)
+      job.meta.workspace = workspace
+      job.meta.resultFile = join(workspace, 'free_result.json')
+      const args = ['-X', 'utf8', join(root, 'tools', 'free_job_runner.py'), '--task', String(payload.prompt || ''), '--workspace', workspace, '--timeout', String(Number(payload.timeout) || 900)]
+      if (payload.keyName) args.push('--key-name', String(payload.keyName))
+      try {
+        const proc = spawn(settings.python || 'python', args, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
+        proc.unref()
+        job.pid = proc.pid
+        job.state = 'running'
+        job.startedAt = new Date().toISOString()
+        job.updatedAt = job.startedAt
+      } catch (error) {
+        job.state = 'failed'
+        job.error = String((error && error.message) || error)
+      }
+    }
+    saveJobs(data)
+    PROGRESS_CACHE.at = 0
+    jobLog(`${id} created ${type} ${job.title}`)
+    return { job: jobPublic(job), duplicate: false }
   }
 
   /* ---------- 巡检 ---------- */
@@ -1712,6 +2282,7 @@ function createConsole(ctx) {
   }
 
   function tick() {
+    tickJobs()
     const interval = Math.max(5, Number(settings.intervalSeconds) || 30) * 1000
     const now = Date.now()
     if (now - state.lastSupervised < interval) return
@@ -1804,6 +2375,17 @@ function createConsole(ctx) {
     }
   }
 
+  function sendText(res, code, text) {
+    try {
+      res.statusCode = code
+      res.setHeader('content-type', 'text/plain; charset=utf-8')
+      res.setHeader('cache-control', 'no-store')
+      res.end(Buffer.from(String(text || ''), 'utf8'))
+    } catch {
+      try { res.statusCode = 500; res.end() } catch { /* ignore */ }
+    }
+  }
+
   async function perform(payload) {
     const type = payload && payload.type
     if (type === 'start') {
@@ -1814,10 +2396,21 @@ function createConsole(ctx) {
     if (type === 'clear-stop') return { ...clearStop(), status: snapshot() }
     if (type === 'kill') return { ...killManaged(), status: snapshot() }
     if (type === 'setting') return { ...setSetting(payload.key, payload.value), status: snapshot() }
+    if (type === 'add-key') return { ...addApiKey(payload.provider, payload.key, payload.baseUrl, payload.model), status: snapshot() }
     if (type === 'map-start') return { ...startMapTask(), status: snapshot() }
     if (type === 'map-stop') return { ...stopMapTask(), status: snapshot() }
     if (type === 'art-start') return { ...startArtTask(), status: snapshot() }
     if (type === 'art-stop') return { ...stopArtTask(), status: snapshot() }
+    if (type === 'telemetry-run') {
+      try {
+        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'task_telemetry.py')], {
+          cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+        }).unref()
+        return { ok: true, status: snapshot() }
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e), status: snapshot() }
+      }
+    }
     if (type === 'self-check') {
       try {
         spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'self_check.py')], {
@@ -1947,15 +2540,18 @@ function createConsole(ctx) {
       const result = await qqSend(payload.target === 'c2c' ? 'c2c' : 'group', String(payload.id || ''), payload.text)
       return { ...result, status: await withBotPids() }
     }
+    if (type === 'community-scout' || type === 'validate-map' || type === 'browser-search') {
+      return remoteTool({ ...payload, action: type })
+    }
     return { ok: false, message: `未知操作：${String(type)}` }
   }
 
-  async function withBotPids() {
-    return snapshotWith(await botPidsCached())
+  async function withBotPids(force = false) {
+    return snapshotWith(await botPidsCached(), force)
   }
 
-  function snapshotWith(pids) {
-    const base = snapshot()
+  function snapshotWith(pids, force = false) {
+    const base = snapshot(force)
     base.bot = botSnapshot(pids)
     return base
   }
@@ -2115,6 +2711,7 @@ function createConsole(ctx) {
   }
 
   function listSessions() {
+    if (SESSION_LIST_CACHE.value && Date.now() - SESSION_LIST_CACHE.at < 5000) return SESSION_LIST_CACHE.value
     const root = sessionsRoot()
     if (!existsSync(root)) throw new Error(`会话目录不存在：${root}`)
     const items = []
@@ -2147,17 +2744,47 @@ function createConsole(ctx) {
         } catch {
           running = false
         }
+        const rowsTitle = cache.record && cache.record.rows && cache.record.rows.title
+        const rows = (cache.record && cache.record.rows) || {}
+        const lastModel = ((rows.modelSelection || {}).val || {}).lastUsed || {}
+        const totals = ((rows.tokenUsage || {}).val || {}).totals || {}
+        const pressure = (rows.contextPressure || {}).val || {}
+        const stats = (rows.sessionStats || {}).val || {}
+        const uq = ((rows.userQuestions || {}).val || {}).questions || {}
+        const inbox = (rows.inbox || {}).val || {}
+        const pending = [].concat(uq.active || [], inbox['next-turn'] || [], inbox['next-step'] || []).length
+        const permission = (rows.permissions || {}).val || {}
+        const activeGoal = ((rows.goal || {}).val || {}).current || {}
+        const outline = ((rows.turnOutline || {}).val || {}).turns || []
+        const latestTurn = outline.length ? outline[outline.length - 1] : null
         items.push({
           sessionId: sid,
           workspace: ws,
-          title: (cache.record && cache.record.title) || cache.title || cache.name || '',
+          title: (rowsTitle && rowsTitle.val) || (cache.record && cache.record.title) || cache.title || '',
           running,
           lastActive: mtime ? new Date(mtime).toISOString() : null,
           bytes: size,
+          model: lastModel.model || '',
+          provider: lastModel.provider || '',
+          tokens: {
+            input: Number(totals.uncachedInputTokens || 0),
+            output: Number(totals.outputTokens || 0),
+            cacheRead: Number(totals.cacheReadTokens || 0),
+          },
+          turns: Number(stats.turns || 0),
+          steps: Number(stats.steps || 0),
+          currentStep: stats.openStep ? `${stats.openStep.turn}/${stats.openStep.step}` : '',
+          pending,
+          approval: permission.approval || '',
+          goalId: activeGoal && activeGoal.goal ? activeGoal.goal.id || '' : '',
+          contextPct: pressure.contextWindow ? Math.round((Number(pressure.pressureTokens || pressure.surfaceTokens || 0) / Number(pressure.contextWindow)) * 100) : 0,
+          lastTurn: latestTurn ? { turn: latestTurn.turn, prompt: String(latestTurn.prompt || '').slice(0, 160), response: String(latestTurn.response || '').slice(0, 160) } : null,
         })
       }
     }
     items.sort((a, b) => String(b.lastActive).localeCompare(String(a.lastActive)))
+    SESSION_LIST_CACHE.at = Date.now()
+    SESSION_LIST_CACHE.value = items
     return items
   }
 
@@ -2602,8 +3229,20 @@ function createConsole(ctx) {
     }
   }
 
+
+  function latestPackageDir() {
+    try {
+      const base = join(TASK_ROOT, '代码', '02_修改')
+      const dirs = readdirSync(base).filter((n) => /^交接包_/.test(n)).sort()
+      const last = dirs[dirs.length - 1]
+      return last ? join(base, last) : join(base, '交接包_1.46')
+    } catch {
+      return join(TASK_ROOT, '代码', '02_修改', '交接包_1.46')
+    }
+  }
+
   function testMod() {
-    const script = join(TASK_ROOT, '代码', '02_修改', '交接包_1.45', 'tools', 'update_and_test.py')
+    const script = join(latestPackageDir(), 'tools', 'update_and_test.py')
     if (!existsSync(script)) return { ok: false, message: `找不到测试脚本：${script}` }
     try {
       const child = spawn(settings.python || 'python', ['-X', 'utf8', script], {
@@ -2621,12 +3260,23 @@ function createConsole(ctx) {
 
   function taskControlSnapshot() {
     const now = Date.now()
-    return (snapshot().tasks || []).map((t) => {      const updated = Date.parse(String(t.updated || '').replace(' ', 'T'))
+    const roles = { desc: '施工鱼', map: '地图鱼', art: '贴图鱼', balance: '平衡鱼' }
+    const acceptance = {
+      desc: 'node --check / self_check.py',
+      map: 'map_validate.py 通过',
+      art: '贴图索引完整',
+      balance: 'balance_sim.py 通过',
+    }
+    return (snapshot().tasks || []).map((t) => {
+      const updated = Date.parse(String(t.updated || '').replace(' ', 'T'))
       const staleMinutes = Number.isFinite(updated) ? Math.round((now - updated) / 60000) : null
       return {
         id: t.id,
         name: t.name,
         state: t.state,
+        role: roles[t.id] || '工班',
+        batch: Number(t.batch || t.round || t.done || 0),
+        acceptance: acceptance[t.id] || '任务指定验收',
         pid: t.pid || null,
         detail: t.detail || '',
         workers: t.workers || 0,
@@ -3012,6 +3662,385 @@ function createConsole(ctx) {
     }
     const route = path.slice(ROUTE_PREFIX.length).replace(/^\/+/, '')
 
+    if (req.method === 'GET' && (route === 'api/schedules' || route === 'schedules')) {
+      try {
+        const svc = globalThis.__AI_HUB_CTX__ && typeof globalThis.__AI_HUB_CTX__.get === 'function'
+          ? globalThis.__AI_HUB_CTX__.get('schedule') : null
+        if (!svc || typeof svc.catalog !== 'function') {
+          sendJson(res, 200, { ok: false, message: 'schedule service not available', items: [] })
+          return
+        }
+        sendJson(res, 200, { ok: true, items: await svc.catalog() })
+      } catch (e) {
+        sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e), items: [] })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/schedules' || route === 'schedules')) {
+      try {
+        const payload = await readBody(req)
+        const svc = globalThis.__AI_HUB_CTX__ && typeof globalThis.__AI_HUB_CTX__.get === 'function'
+          ? globalThis.__AI_HUB_CTX__.get('schedule') : null
+        if (!svc || typeof svc.delete !== 'function') {
+          sendJson(res, 200, { ok: false, message: 'schedule service not available' })
+          return
+        }
+        sendJson(res, 200, await svc.delete({ sessionId: payload.sessionId, id: payload.id }))
+      } catch (e) {
+        sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/logs' || route === 'logs')) {
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('lines')) || 100))
+      try {
+        const lines = readFileSync(jobsLogPath, 'utf8').split(/\r?\n/).filter(Boolean).slice(-limit)
+        sendJson(res, 200, { ok: true, lines })
+      } catch (error) {
+        sendJson(res, 200, { ok: false, lines: [], message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/queue' || route === 'queue')) {
+      const state = url.searchParams.get('state')
+      const queue = readJson(join(root, 'tools', 'auto_schedule_queue.json'), { tasks: [] })
+      const tasks = (queue.tasks || []).filter((t) => !state || t.state === state).map((t) => ({ title: t.title, state: t.state, goal: t.goal, attempts: t.attempts, model: t.model }))
+      sendJson(res, 200, { ok: true, tasks })
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/health' || route === 'health')) {
+      const guard = readJson(join(root, 'tools', 'health_guard.json'), {})
+      const watch = readJson(join(root, 'tools', 'free_model_watch.json'), {})
+      const data = loadJobs()
+      const jobs = Object.values(data.jobs || {})
+      const queue = readJson(join(root, 'tools', 'auto_schedule_queue.json'), { tasks: [] }).tasks || []
+      const freeCd = readJson(join(root, 'tools', 'free_cooldown.json'), {})
+      const counts = jobs.reduce((acc, job) => { acc[job.state] = (acc[job.state] || 0) + 1; return acc }, {})
+      const stale = jobs.filter((job) => job.state === 'running' && (Date.now() - Date.parse(job.createdAt || Date.now())) > 45 * 60 * 1000).map((job) => job.id)
+      sendJson(res, 200, { ok: guard.api === 'ok', version: readJson(join(dirname(fileURLToPath(import.meta.url)), 'package.json'), {}).version || readJson(join(root, 'package.json'), {}).version || '', at: nowText(), guard, watch, jobs: counts, stale, queue: { queued: queue.filter((t) => t.state === 'queued').length }, freeCooldown: freeCd })
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/commander/goal' || route === 'commander/goal')) {
+      try {
+        const payload = await readBody(req)
+        const goal = String(payload.goal || '').trim()
+        if (!goal || goal.length > 4000) {
+          sendJson(res, 400, { ok: false, message: 'goal 为空或过长' })
+          return
+        }
+        const file = join(root, 'tools', 'commander_goals.json')
+        const data = readJson(file, { goals: [] })
+        const id = `goal-${Date.now()}`
+        data.goals = data.goals || []
+        data.goals.push({ id, goal, state: 'queued', createdAt: nowText() })
+        writeJson(file, data)
+        sendJson(res, 200, { ok: true, id })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/commander/report' || route === 'commander/report')) {
+      const name = String(url.searchParams.get('name') || '').split(/[\\/]/).pop()
+      if (!/^[A-Za-z0-9._-]+\.md$/.test(name)) {
+        sendJson(res, 400, { ok: false, message: 'invalid report name' })
+        return
+      }
+      const file = join(root, 'tools', 'commander_reports', name)
+      if (!existsSync(file)) {
+        sendJson(res, 404, { ok: false, message: 'report not found' })
+        return
+      }
+      sendJson(res, 200, { ok: true, name, text: readFileSync(file, 'utf8').slice(0, 50000) })
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/commander' || route === 'commander')) {
+      const goals = readJson(join(root, 'tools', 'commander_goals.json'), { goals: [] })
+      const state = readJson(join(root, 'tools', 'commander_state.json'), {})
+      let reports = []
+      try {
+        const dir = join(root, 'tools', 'commander_reports')
+        reports = readdirSync(dir).filter((x) => x.endsWith('.md')).slice(-20)
+      } catch {
+        reports = []
+      }
+      sendJson(res, 200, { ok: true, goals: goals.goals || [], state, reports })
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/manifest' || route === 'manifest' || route === 'api/tools')) {
+      const manifest = readJson(join(root, 'tools', 'api_manifest.json'), null) || readJson(join(dirname(fileURLToPath(import.meta.url)), 'api_manifest.json'), { version: 1, endpoints: [] })
+      sendJson(res, 200, manifest)
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/local-search' || route === 'local-search')) {
+      const q = String(url.searchParams.get('q') || '').trim()
+      if (!q) {
+        sendJson(res, 400, { ok: false, message: '需要 q' })
+        return
+      }
+      try {
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'local_search.py'), q, '--limit', String(Number(url.searchParams.get('limit')) || 12)], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const raw = String(out || '').trim()
+        const start = raw.indexOf('{')
+        sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/route' || route === 'route')) {
+      const role = String(url.searchParams.get('role') || 'code')
+      if (!['audit', 'review', 'code', 'summary', 'guide', 'classify'].includes(role)) {
+        sendJson(res, 400, { ok: false, message: 'invalid role' })
+        return
+      }
+      try {
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_router.py'), role], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const raw = String(out || '').trim()
+        sendJson(res, 200, JSON.parse(raw.slice(raw.indexOf('{'))))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/a2a/agent-card' || route === 'a2a/agent-card')) {
+      const version = readJson(join(dirname(fileURLToPath(import.meta.url)), 'package.json'), {}).version || ''
+      sendJson(res, 200, {
+        name: 'ai-hub',
+        description: 'Local-first DSH task scheduler, model router and job bus',
+        version,
+        url: `http://127.0.0.1:${req.socket && req.socket.localPort ? req.socket.localPort : ''}/dsh-console`,
+        capabilities: { streaming: false, pushNotifications: false },
+        skills: [
+          { id: 'jobs', name: '异步任务', description: '创建/查询/取消 OpenCode 与免费 AMD 任务' },
+          { id: 'models', name: '模型路由', description: '按 IQ/延迟/稳定性/冷却选择模型' },
+          { id: 'research', name: '本地资料检索', description: '检索已归档的调研、注册、免费池缓存' },
+          { id: 'commander', name: '总指挥', description: '长会话拆任务、验收和报告' },
+        ],
+      })
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/registration' || route === 'registration')) {
+      sendJson(res, 200, readJson(join(root, 'tools', 'registration_profiles.json'), { items: [] }))
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/model-eval/run' || route === 'model-eval/run')) {
+      try {
+        const payload = await readBody(req)
+        const model = String(payload.model || '').trim()
+        if (!model || model.length > 160) {
+          sendJson(res, 400, { ok: false, message: '需要 model' })
+          return
+        }
+        const baseUrl = String(payload.baseUrl || 'http://127.0.0.1:8799/v1')
+        const key = String(payload.key || 'bridge')
+        const proc = spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', baseUrl, '--model', model, '--key', key, '--provider-name', String(payload.provider || '')], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
+        proc.unref()
+        sendJson(res, 200, { ok: true, pid: proc.pid, model, note: '评测在后台运行，完成后查 /api/model-eval' })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/model-eval' || route === 'model-eval')) {
+      sendJson(res, 200, readJson(join(root, 'tools', 'model_eval_results.json'), { models: [] }))
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/opencode/free-models' || route === 'opencode/free-models')) {
+      if (OPENCODE_FREE_CACHE.data && Date.now() - OPENCODE_FREE_CACHE.at < 300000) {
+        sendJson(res, 200, OPENCODE_FREE_CACHE.data)
+        return
+      }
+      try {
+        const cli = String(settings.opencodeCli || join(process.env.APPDATA || '', 'ai.opencode.desktop', 'cli', '2.2.6-x64', 'opencode-cli.exe'))
+        const out = execFileSync(cli, ['models'], { windowsHide: true, timeout: 30000, encoding: 'utf8' })
+        const names = [...new Set(String(out || '').split(/\r?\n/).map((x) => x.trim()).filter((x) => /\/.*free/i.test(x)).map((x) => x.slice(x.indexOf('/') + 1)))].sort()
+        const payload = { ok: true, models: names.map((name) => ({ id: 'opencode/' + name, name })), at: nowText() }
+        OPENCODE_FREE_CACHE.at = Date.now()
+        OPENCODE_FREE_CACHE.data = payload
+        sendJson(res, 200, payload)
+      } catch (error) {
+        sendJson(res, 200, { ok: false, models: [], error: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/free-models' || route === 'free-models')) {
+      const q = String(url.searchParams.get('q') || '').toLowerCase()
+      const reg = readJson(join(root, 'tools', 'free_models_registry.json'), { models: [] })
+      const rows = (Array.isArray(reg.models) ? reg.models : []).filter((m) => {
+        if (!q) return true
+        return [m.source, m.provider, m.model, m.quota, m.card_required, m.status].join(' ').toLowerCase().includes(q)
+      })
+      sendJson(res, 200, { ok: true, updated: reg.updated || '', total: rows.length, models: rows.slice(0, 200) })
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/xdpool' || route === 'xdpool')) {
+      try {
+        const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
+        if (!origin) throw new Error('webServer unavailable')
+        const headers = { origin }
+        const statusRes = await fetch(`${origin}/plugins/dsh-xdpool/status?region=cn`, { headers, signal: AbortSignal.timeout(4000) })
+        if (!statusRes.ok) {
+          sendJson(res, 200, { ok: true, installed: false, message: `xdpool HTTP ${statusRes.status}` })
+          return
+        }
+        const status = await statusRes.json()
+        let aggregate = null
+        try {
+          const aggRes = await fetch(`${origin}/plugins/dsh-xdpool/aggregate`, { headers, signal: AbortSignal.timeout(4000) })
+          if (aggRes.ok) aggregate = await aggRes.json()
+        } catch {
+          aggregate = null
+        }
+        sendJson(res, 200, { ok: true, installed: true, status, aggregate })
+      } catch (e) {
+        sendJson(res, 200, { ok: true, installed: false, message: String(e && e.message ? e.message : e) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/providers' || route === 'providers')) {
+      const sources = []
+      const models = []
+      const states = readJson(join(root, 'tools', 'ds_console_settings.json'), {}).modelStates || {}
+      const push = (source, model) => {
+        const rawId = String(model.id || model.name || '')
+        if (!rawId) return
+        models.push({
+          key: `${source}:${rawId}`,
+          source,
+          id: rawId,
+          name: model.name || rawId,
+          context: model.contextWindow || model.context || null,
+          free: model.free !== false,
+          state: states[rawId] || states[model.name] || 'disabled',
+        })
+      }
+      try {
+        const cand = readJson(join(root, 'tools', 'free_pool_candidates.json'), {})
+        const providers = Array.isArray(cand.providers) ? cand.providers : []
+        sources.push({ id: 'free-pool', name: '公开免费池清单', kind: 'catalog', installed: providers.length > 0, providers: providers.length, models: 0, updated: cand.checked_at || '' })
+      } catch { /* ignore */ }
+      try {
+        const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+        const amdModels = Array.isArray(cfg.models) ? cfg.models : []
+        sources.push({ id: 'amd', name: 'AMD Radeon', kind: 'official', installed: amdModels.length > 0, providers: 1, models: amdModels.length, updated: '' })
+        for (const id of amdModels) push('amd', { id, name: id })
+      } catch { /* ignore */ }
+      try {
+        const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
+        if (origin) {
+          const r = await fetch(`${origin}/plugins/dsh-xdpool/status?region=cn`, { headers: { origin }, signal: AbortSignal.timeout(4000) })
+          if (r.ok) {
+            const status = await r.json()
+            const list = Array.isArray(status.models) ? status.models : []
+            sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: true, accounts: (status.accounts || []).length, models: list.length, cooling: status.cooling || 0, updated: '' })
+            for (const m of list) push('xdpool', m)
+          } else {
+            sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: false, models: 0, error: `HTTP ${r.status}` })
+          }
+        }
+      } catch (e) {
+        sources.push({ id: 'xdpool', name: 'XD Pool', kind: 'companion', installed: false, models: 0, error: String(e && e.message ? e.message : e) })
+      }
+      sendJson(res, 200, { ok: true, api: '/dsh-console/api/providers', version: 1, updated: nowText(), sources, models })
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/swarm' || route === 'swarm')) {
+      const data = readJson(join(root, 'tools', 'swarm_tasks.json'), { tasks: [] })
+      const tasks = Array.isArray(data.tasks) ? data.tasks : []
+      const counts = {}
+      for (const t of tasks) counts[t.status || '?'] = (counts[t.status || '?'] || 0) + 1
+      sendJson(res, 200, { ok: true, api: '/dsh-console/api/swarm', counts, tasks })
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/swarm' || route === 'swarm')) {
+      const payload = await readBody(req)
+      const action = String(payload.op || payload.action || 'list')
+      if (action === 'start') {
+        try {
+          spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'swarm_orchestrator.py'), 'start', '--workers', String(Number(payload.workers) || 4)], {
+            cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+          }).unref()
+          sendJson(res, 200, { ok: true, started: true, workers: Number(payload.workers) || 4 })
+        } catch (e) {
+          sendJson(res, 500, { ok: false, message: String(e && e.message ? e.message : e) })
+        }
+        return
+      }
+      sendJson(res, 400, { ok: false, message: '未知 op，只支持 start；任务用 swarm_orchestrator.py plan/add 写入' })
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/jobs' || route === 'jobs')) {
+      const state = url.searchParams.get('state')
+      const jobs = Object.values(loadJobs().jobs)
+        .filter((j) => !state || j.state === state)
+        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+        .slice(0, 100)
+        .map(jobPublic)
+      sendJson(res, 200, { ok: true, jobs, total: jobs.length })
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/jobs' || route === 'jobs')) {
+      try {
+        const payload = await readBody(req)
+        sendJson(res, 200, { ok: true, ...createJob(payload) })
+      } catch (error) {
+        sendJson(res, 400, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/event' || route === 'event')) {
+      try {
+        const payload = await readBody(req)
+        const id = String(payload.jobId || payload.id || '')
+        const state = String(payload.state || 'succeeded')
+        const job = await finishJob(id, ['succeeded', 'failed', 'cancelled', 'stale'].includes(state) ? state : 'succeeded', {
+          resultRef: payload.resultRef ? String(payload.resultRef) : null,
+          result: payload.result ? String(payload.result).slice(0, 8000) : null,
+          error: payload.error ? String(payload.error).slice(0, 4000) : null,
+        })
+        sendJson(res, job ? 200 : 404, { ok: Boolean(job), job: job ? jobPublic(job) : null })
+      } catch (error) {
+        sendJson(res, 400, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && route.startsWith('api/jobs/')) {
+      const id = decodeURIComponent(route.slice('api/jobs/'.length))
+      const job = loadJobs().jobs[id]
+      if (!job) {
+        sendJson(res, 404, { ok: false, message: 'job not found' })
+        return
+      }
+      sendJson(res, 200, { ok: true, job: jobPublic(job) })
+      return
+    }
+    if (req.method === 'POST' && route.startsWith('api/jobs/') && route.endsWith('/cancel')) {
+      const id = decodeURIComponent(route.slice('api/jobs/'.length, -'/cancel'.length))
+      const data = loadJobs()
+      const job = data.jobs[id]
+      if (!job) {
+        sendJson(res, 404, { ok: false, message: 'job not found' })
+        return
+      }
+      if (job.pid && pidAlive(job.pid)) {
+        try {
+          if (process.platform === 'win32') spawn('taskkill', ['/PID', String(job.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {})
+          else process.kill(Number(job.pid), 'SIGTERM')
+        } catch {
+          /* ignore */
+        }
+      }
+      await finishJob(id, 'cancelled', { error: 'cancelled by user' })
+      sendJson(res, 200, { ok: true, job: jobPublic(loadJobs().jobs[id]) })
+      return
+    }
+
     if (req.method === 'GET' && (route === 'api/tasks' || route === 'tasks')) {
       sendJson(res, 200, {
         ok: true,
@@ -3034,7 +4063,8 @@ function createConsole(ctx) {
     }
     if (req.method === 'GET' && (route === 'api/status' || route === 'status')) {
       try {
-        sendJson(res, 200, await withBotPids())
+        const force = url.searchParams.get('refresh') === '1'
+        sendJson(res, 200, await withBotPids(force))
       } catch (error) {
         log(`status 失败：${String((error && error.stack) || error)}`)
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error) })
@@ -3065,6 +4095,86 @@ function createConsole(ctx) {
         sendJson(res, 200, await injectMessage(payload))
       } catch (error) {
         sendJson(res, 400, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/progress/session' || route === 'progress/session')) {
+      const id = String(url.searchParams.get('id') || url.searchParams.get('session') || '')
+      const session = listSessions().find((s) => s.sessionId === id)
+      if (!session) {
+        sendJson(res, 404, { ok: false, message: 'session not found' })
+        return
+      }
+      sendJson(res, 200, { ok: true, session })
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/progress/text' || route === 'progress/text')) {
+      try {
+        const sid = String(url.searchParams.get('id') || url.searchParams.get('session') || '')
+        const sessions = listSessions().filter((s) => s.running).slice(0, 10)
+        if (sid) {
+          const s = listSessions().find((x) => x.sessionId === sid)
+          if (!s) {
+            sendText(res, 404, 'session not found')
+            return
+          }
+          sendText(res, 200, `${s.title || s.sessionId} | ${s.model || '?'} | ${s.currentStep || s.turns + '轮'} | ctx ${s.contextPct || 0}% | pending ${s.pending || 0}\n${(s.lastTurn || {}).prompt || ''}`)
+          return
+        }
+        const jobs = Object.values(loadJobs().jobs || {})
+        const queue = readJson(join(root, 'tools', 'auto_schedule_queue.json'), { tasks: [] }).tasks || []
+        const counts = jobs.reduce((acc, job) => { acc[job.state] = (acc[job.state] || 0) + 1; return acc }, {})
+        const goals = readJson(join(root, 'tools', 'commander_goals.json'), { goals: [] }).goals || []
+        const lines = [`AI Console ${nowText()}`, `DSH 运行中：${sessions.length}`]
+        for (const s of sessions) {
+          lines.push(`- ${s.title || s.sessionId} | ${s.model || '?'} | ${s.currentStep || s.turns + '轮'} | ctx ${s.contextPct || 0}%${s.pending ? ` | 待处理 ${s.pending}` : ''}`)
+        }
+        lines.push(`Jobs：running ${counts.running || 0} / succeeded ${counts.succeeded || 0} / failed ${counts.failed || 0}`)
+        lines.push(`队列：${queue.filter((t) => t.state === 'queued').length} 个等待${queue.filter((t) => t.state === 'queued').length ? ' · ' + queue.filter((t) => t.state === 'queued').slice(0, 5).map((t) => t.title).join(' / ') : ''}`)
+        for (const job of jobs.filter((j) => j.state === 'running').slice(0, 5)) {
+          lines.push(`- job ${job.title || job.id} | ${job.type || ''} | ${job.model || ''}`)
+        }
+        lines.push(`总指挥：${goals.map((g) => `${g.id}:${g.state}`).join(', ') || '无'}`)
+        sendText(res, 200, lines.join('\n'))
+      } catch (error) {
+        sendText(res, 500, String((error && error.message) || error).slice(0, 300))
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/progress' || route === 'progress')) {
+      if (PROGRESS_CACHE.data && Date.now() - PROGRESS_CACHE.at < 2000) {
+        sendJson(res, 200, PROGRESS_CACHE.data)
+        return
+      }
+      try {
+        const snap = snapshot()
+        const sessions = listSessions()
+        const jobData = loadJobs()
+        const jobs = Object.values(jobData.jobs || {})
+        const goals = readJson(join(root, 'tools', 'commander_goals.json'), { goals: [] }).goals || []
+        const queue = readJson(join(root, 'tools', 'auto_schedule_queue.json'), { tasks: [] }).tasks || []
+        const counts = jobs.reduce((acc, job) => { acc[job.state] = (acc[job.state] || 0) + 1; return acc }, {})
+        const payload = {
+          ok: true,
+          at: nowText(),
+          sessions: {
+            running: sessions.filter((s) => s.running).slice(0, 20),
+            recent: sessions.slice(0, 8),
+          },
+          tasks: (snap.tasks || []).map((t) => ({ id: t.id, state: t.state, progress: t.progress, batch: t.batch, workers: t.workers })),
+          jobs: {
+            counts,
+            running: jobs.filter((j) => j.state === 'running').map((j) => ({ id: j.id, type: j.type, title: j.title, model: (j.meta || {}).model || '', startedAt: j.startedAt })).slice(0, 20),
+            recent: jobs.slice(-10).map((j) => ({ id: j.id, type: j.type, title: j.title, state: j.state })),
+          },
+          commander: { goals: goals.slice(-5).map((g) => ({ id: g.id, state: g.state, tasks: g.tasks, report: g.report })) },
+          queue: { queued: queue.filter((t) => t.state === 'queued').length, tasks: queue.filter((t) => t.state === 'queued').slice(-10).map((t) => ({ title: t.title, goal: t.goal })) },
+        }
+        PROGRESS_CACHE.at = Date.now()
+        PROGRESS_CACHE.data = payload
+        sendJson(res, 200, payload)
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
       }
       return
     }
@@ -3351,7 +4461,34 @@ function createConsole(ctx) {
     )
   }
 
+  function migrateExtraProviders() {
+    const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+    const providers = cfg.key_providers || {}
+    for (const [name, key] of Object.entries(cfg.extra_api_keys || {})) {
+      if (!key) continue
+      const vendor = String(providers[name] || name.replace(/_API_KEY.*$/, '') || 'custom')
+      if (vendor.toLowerCase().includes('opencode')) {
+        try {
+          spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'opencode_bridge.py'), '--port', '8799'], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true }).unref()
+        } catch {
+          /* bridge may already be running */
+        }
+      }
+      try {
+        const out = ensureDshProvider(vendor, name, key, '', '')
+        if (out && out.ok) log(`已补齐 DSH provider：${vendor}`)
+      } catch (error) {
+        log(`补齐 ${vendor} provider 失败：${String((error && error.message) || error)}`)
+      }
+    }
+  }
+
   function install() {
+    try {
+      migrateExtraProviders()
+    } catch (error) {
+      log(`provider 迁移失败：${String((error && error.message) || error)}`)
+    }
     // 路由和工具都用 ctx.effect 拥有，卸载/热重载时才会真正释放。
     ctx.effect(() => {
       registerRoute()
@@ -3405,6 +4542,7 @@ function createConsole(ctx) {
  */
 export function apply(ctx) {
   const tasks = new Map()
+  globalThis.__AI_HUB_CTX__ = ctx
   globalThis.__AI_HUB__ = {
     version: 1,
     registerTask(desc) {
@@ -3420,6 +4558,36 @@ export function apply(ctx) {
   }
   ctx.effect(() => () => {
     if (globalThis.__AI_HUB__ && globalThis.__AI_HUB__.listTasks) delete globalThis.__AI_HUB__
+    delete globalThis.__AI_HUB_CTX__
   }, 'ai-hub: task registry')
+  const sourceTool = (name, description, parameterName, sourceName) => {
+    const parameters = parameterName
+      ? { [parameterName]: { type: 'string', required: true, description: '搜索查询或 URL' } }
+      : {}
+    return ctx.tools.register({
+      name,
+      description,
+      timeoutMs: 60000,
+      parameters,
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
+      execute(args) {
+        const base = resolveRoot()
+        const argv = ['-X', 'utf8', join(base, 'tools', 'fetch_sources.py'), sourceName || name]
+        if (parameterName) argv.push(String(args[parameterName] || ''))
+        else argv.push('test')
+        try {
+          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 })
+        } catch (error) {
+          return `SOURCE_ERROR: ${String((error && error.stderr) || (error && error.message) || error).slice(0, 4000)}`
+        }
+      },
+    })
+  }
+  sourceTool('free_search_test', '检查 exa / tavily / anysearch 是否可用，缺 key 会显式列出。', '', 'free_search_test')
+  sourceTool('multi_search', '用至少两个可用引擎交叉验证一个查询。', 'query', 'multi_search')
+  sourceTool('exa', '英文深挖搜索（exa）。', 'query', 'exa')
+  sourceTool('tavily', '中文/实践线搜索（tavily）。', 'query', 'tavily')
+  sourceTool('anysearch', '兜底搜索（anysearch）。', 'query', 'anysearch')
+  sourceTool('vine_research', '批量版顺藤摸瓜：四向 query、学术/实践分线、结案占位。', 'query', 'vine')
   createConsole(ctx).install()
 }

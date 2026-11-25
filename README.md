@@ -22,7 +22,12 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 ### Features
 
 - Task overview: code, map, texture and balance tasks with batch, progress, workers and keys
-- Concurrency matrix: local key pool × models, busy and idle slots
+- Concurrency matrix: provider-grouped key pool with per-provider model columns
+- Model module: three states per model (disabled / backup / active), all provider pools listed
+- Async jobs: job_id, /api/jobs, /api/event, cancel, stale timeout and OpenCode workers
+- Token accounting: per-provider and daily totals, cache_read separated
+- Key onboarding: register a provider into DSH, OpenCode direct/bridge probe
+- Schedule tab: read and delete DSH scheduled tasks
 - Auto-scaling: start extra workers when idle slots exceed a threshold
 - Free-pool discovery: parse public GitHub lists into provider candidates, base URLs and free quotas
 - Map tools: wish-based naming, spawn/resource validation, diff checks
@@ -50,6 +55,12 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 
 ```powershell
 git clone https://github.com/Railan1314/dsh-plugin-ds-console.git
+```
+
+### npm
+
+```bash
+dsh plugin --profile desktop add dsh-plugin-ai-hub
 ```
 
 There is no npm build step; the plugin is plain ES modules.
@@ -127,7 +138,12 @@ AI 调度台是一个本机优先的 DSH 调度插件。它观察你机器上的
 ### 功能
 
 - 任务总览：代码、地图、贴图、平衡的状态、批次、进度、worker/key
-- 并发矩阵：本地 key 池 × 模型，显示实际占用和空闲槽位
+- 并发矩阵：按密钥供应商分组，每个供应商独立显示自己已开启的模型列
+- 模型模块：不启用 / 备选 / 启用三态，所有池子模型都列出
+- 异步任务：job_id、/api/jobs、/api/event、取消、超时 stale、OpenCode worker
+- Token 统计：按供应商和每日统计，cache_read 单列
+- 密钥接入：把 provider 写进 DSH，OpenCode 自动测试直连/桥接
+- 定时页：读取 DSH 定时任务并支持删除
 - 自动扩展：空闲槽位超过阈值时拉起额外任务
 - 免费池侦察：解析公开 GitHub 清单，输出 provider、base URL、免费额度
 - 地图工具：许愿式命名、出生点/矿校验、差异化检查

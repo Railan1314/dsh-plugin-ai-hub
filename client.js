@@ -17,6 +17,48 @@ window.__ModuleLoader__.load({
     const STATUS_URL = '/dsh-console/api/status'
     const ACTION_URL = '/dsh-console/api/action'
     const PANEL_ID = 'ds-console'
+    const MODEL_GROUPS = [
+      {
+        name: 'AMD 免费池',
+        models: ['V4.1', 'V4', 'V4 Vision', 'd3（V3）', 'd3-flash', 'Qwen3.8', 'GLM', 'MiMo', 'Gemma', 'MiniCPM5', 'MiniCPM-V 35B', 'MiniCPM-V 1B', 'Hy4', 'Clef'],
+      },
+      {
+        name: 'DeepSeek 官方',
+        models: ['deepseek-flash', 'deepseek-v4-pro'],
+      },
+    ]
+    const ALL_MODELS = MODEL_GROUPS.flatMap((g) => g.models)
+    const MATRIX_MODELS = ['V4.1', 'V4', 'GLM', 'Gemma']
+    const shortModel = (m) => {
+      const s = String(m || '')
+      const low = s.toLowerCase()
+      if (/v4\.1/.test(low)) return 'V4.1f'
+      if (/deepseek.*flash/.test(low)) return 'V4f'
+      if (/deepseek.*pro/.test(low)) return 'V4p'
+      if (/v4/.test(low)) return /pro/.test(low) ? 'V4p' : 'V4f'
+      if (/glm/.test(low)) {
+        const match = /glm[\s-]*([\d.]+)/i.exec(s)
+        const version = match ? match[1] : '5.3'
+        return `GLM-${version}${/pro/.test(low) ? 'p' : 'f'}`
+      }
+      if (/gemma/.test(low)) {
+        const match = /gemma[\s-]*([\d.]+(?:-\d+b)?)/i.exec(s)
+        return match ? `Gemma-${match[1]}` : 'Gemma-4-31B'
+      }
+      if (/qwen/.test(low)) {
+        const match = /qwen[\s-]*([\d.]+)/i.exec(s)
+        return match ? `Qwen${match[1]}` : 'Qwen'
+      }
+      if (/mimo/.test(low)) {
+        const match = /mimo[\s-]*v?([\d.]+)/i.exec(s)
+        return match ? `MiMo-${match[1]}${/flash/.test(low) ? 'f' : ''}` : 'MiMo'
+      }
+      if (/minicpm/.test(low)) {
+        const match = /minicpm[\s-]*v?([\d.]+)/i.exec(s)
+        return match ? `MiniCPM-${match[1]}` : 'MiniCPM'
+      }
+      return s
+    }
 
     // 主机客户端给 DLC 用的模块注册表；DLC 的 client.js 往这里登记页签。
     window.__AI_HUB_UI__ = window.__AI_HUB_UI__ || (() => {
@@ -492,6 +534,7 @@ window.__ModuleLoader__.load({
 .dsc-bar i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--dsw-alias-brand-primary);transition:width .35s ease}
 .dsc-chips{display:flex;gap:8px;flex-wrap:wrap}
 .dsc-chip{font-size:11.5px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:7px;padding:4px 9px;white-space:nowrap}
+.dsc-chip.on{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,var(--dsw-alias-bg-layer-2));box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary)}
 .dsc-chip b{color:var(--dsw-alias-label-primary);font-weight:600;font-variant-numeric:tabular-nums}
 .dsc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px}
 .dsc-metric{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:13px;padding:13px 15px;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -561,6 +604,21 @@ window.__ModuleLoader__.load({
 .dsc-table{width:100%;border-collapse:collapse;font-size:12px;display:block;max-height:360px;overflow-y:auto;overflow-x:auto}.dsc-table thead{position:sticky;top:0;background:var(--dsw-alias-bg-layer-2)}.dsc-table tbody tr:nth-child(even){background:var(--dsw-alias-bg-layer-2)}.dsc-table tbody tr:nth-child(-n+3){background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}.dsc-table td:first-child,.dsc-table th:first-child{width:36px;color:var(--dsw-alias-label-secondary)}.dsc-table tbody{counter-reset:row}.dsc-table tbody tr{counter-increment:row}.dsc-table tbody td:first-child::before{content:counter(row) ". ";color:var(--dsw-alias-label-secondary);font-size:11px}
 .dsc-table th,.dsc-table td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .dsc-table th{color:var(--dsw-alias-label-secondary);font-weight:600}
+.dsc-table th:first-child,.dsc-table td:first-child{position:sticky;left:0;z-index:1;background:var(--dsw-alias-bg-layer-1)}
+.dsc-table thead th:first-child{z-index:3;background:var(--dsw-alias-bg-layer-2)}
+.dsc-table tbody tr:nth-child(even) td:first-child{background:var(--dsw-alias-bg-layer-2)}
+.dsc-state{display:inline-block;padding:1px 6px;border-radius:999px;font-size:11px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.dsc-state.succeeded,.dsc-state.done{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 18%,transparent);color:var(--dsw-alias-state-success-primary)}
+.dsc-state.failed,.dsc-state.stale,.dsc-state.cancelled{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 18%,transparent);color:var(--dsw-alias-state-error-primary)}
+.dsc-state.running,.dsc-state.dispatched{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 18%,transparent);color:var(--dsw-alias-state-business-primary)}
+.dsc-state.queued{background:color-mix(in srgb,var(--dsw-alias-state-warning-primary) 18%,transparent)}
+.dsc-table th,.dsc-table td{border-right:1px solid color-mix(in srgb,var(--dsw-alias-border-l1) 70%,transparent)}
+.dsc-table th:last-child,.dsc-table td:last-child{border-right:0}
+.dsc-table tbody tr:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsc-table tbody tr:nth-child(even) td{border-bottom-color:color-mix(in srgb,var(--dsw-alias-border-l1) 80%,transparent)}
+.dsc-matrix th{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,var(--dsw-alias-brand-primary) 12%)}
+.dsc-matrix td:first-child{border-right:1px solid var(--dsw-alias-border-l1)}
+.dsc-matrix tr[data-vendor]{background:var(--dsw-alias-bg-layer-2)}
 .dsc-matrix td:first-child,.dsc-matrix th:first-child{width:auto;color:inherit}
 .dsc-matrix tbody td:first-child::before{content:none}
 .dsc-matrix td,.dsc-matrix th{text-align:center;white-space:nowrap}
@@ -586,6 +644,12 @@ window.__ModuleLoader__.load({
         }
         return ZH[key] || key
       }
+    }
+
+    function XdIcon(props) {
+      return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
+        h('circle', { cx: 12, cy: 12, r: 9, stroke: 'currentColor', strokeWidth: 1.7 }),
+        h('path', { d: 'M8 12h8M12 8v8', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))
     }
 
     function ConsoleIcon(props) {
@@ -850,7 +914,7 @@ window.__ModuleLoader__.load({
           'section',
           { className: 'dsc-metrics' },
           h(Metric, { label: tr('findings'), value: String(pipeline.findings || 0), hint: tr('cycle') + ' ' + (pipeline.cycle || 0) }),
-          h(Metric, { label: tr('version'), value: pipeline.version || '1.45', hint: tr('lastTest') + ' ' + (pipeline.lastTest || '—') }),
+          h(Metric, { label: tr('version'), value: pipeline.version || '1.46', hint: tr('lastTest') + ' ' + (pipeline.lastTest || '—') }),
           h(Metric, { label: tr('restartCount'), value: String(watchdog.restarts || 0), hint: watchdog.lastExitAt || '—' }),
           h(Metric, { label: tr('lastEvent'), value: watchdog.lastEvent || '—', compact: true, hint: pipeline.updated ? tr('updatedAt') + ' ' + pipeline.updated : '' }),
         ),
@@ -1138,10 +1202,26 @@ window.__ModuleLoader__.load({
       const [cleanPreview, setCleanPreview] = React.useState(null)
       const [codeTask, setCodeTask] = React.useState('')
       const [codeResult, setCodeResult] = React.useState(null)
+      const [keyProvider, setKeyProvider] = React.useState('')
+      const [keyValue, setKeyValue] = React.useState('')
+      const [keyBase, setKeyBase] = React.useState('')
+      const [keyModel, setKeyModel] = React.useState('')
+      const [keyMsg, setKeyMsg] = React.useState('')
       const pipeline = snap.pipeline || {}
       const bot = snap.bot || {}
       const conc = snap.concurrency || {}
       const matrix = conc.matrix || { models: [], keys: [], cells: [] }
+      const [selectedModels, setSelectedModels] = React.useState(matrix.models || [])
+      const modelKey = (matrix.models || []).join('|') + '|' + ((snap.settings || {}).displayModels || []).join('|') + '|' + JSON.stringify((snap.settings || {}).modelStates || {})
+      React.useEffect(() => {
+        const settings = snap.settings || {}
+        const planned = settings.displayModels
+        const states = settings.modelStates || {}
+        const active = (matrix.models || []).filter((m) => states[m] === 'active' || (!states[m] && m === 'V4.1'))
+        const allowed = Array.isArray(planned) && planned.length ? planned : (active.length ? active : ['V4.1'])
+        setSelectedModels((matrix.models || []).filter((m) => allowed.includes(m)))
+      }, [modelKey])
+      const visibleModels = (matrix.models || []).filter((m) => selectedModels.includes(m))
       const percent = pipeline.total > 0 ? Math.round((Number(pipeline.checked) || 0) / Number(pipeline.total) * 100) : 0
       const tabOf = { desc: 'code', map: 'map', art: 'art', balance: 'balance' }
       return h(
@@ -1171,7 +1251,26 @@ window.__ModuleLoader__.load({
             h(Metric, { label: tr('quotaTokens'), value: String((snap.quota || {}).tokens || 0) }),
             h(Metric, { label: tr('quotaTotal'), value: String((snap.quota || {}).tokensTotal || 0) }),
             h(Metric, { label: tr('quotaPerKey'), value: String((snap.quota || {}).perKey || 0), hint: tr('balanceUnits') }),
+            h(Metric, { label: '账号余额', value: (snap.quota || {}).balance || '—', hint: 'DeepSeek 付费侧（当前不用）' }),
           ),
+        ),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'Token 消耗 · 按供应商 / 每日', h('small', null, (snap.tokenBreakdown || {}).updated || '')),
+          h('div', { className: 'dsc-chips' },
+            h('span', { className: 'dsc-chip' }, '实测总量 ', h('b', null, String((snap.tokenBreakdown || {}).total || 0))),
+            h('span', { className: 'dsc-chip' }, '供应商 ', h('b', null, String(((snap.tokenBreakdown || {}).providers || []).length)))),
+          h('table', { className: 'dsc-table', style: { marginTop: '10px' } },
+            h('thead', null, h('tr', null, h('th', null, '供应商'), h('th', null, 'Token'), h('th', null, '会话'), h('th', null, '模型'))),
+            h('tbody', null, ((snap.tokenBreakdown || {}).providers || []).map((p) => h('tr', { key: p.name },
+              h('td', null, p.name), h('td', null, String(p.tokens || 0)), h('td', null, String(p.sessions || 0)), h('td', null, shortModel(p.model) || ''))))),
+          h('h3', { className: 'dsc-sec-title', style: { marginTop: '14px' } }, '每日消耗'),
+          h('table', { className: 'dsc-table' },
+            h('thead', null, h('tr', null, h('th', null, '日期'), h('th', null, 'Token'), h('th', null, '主要供应商'))),
+            h('tbody', null, ((snap.tokenBreakdown || {}).days || []).slice(0, 14).map((d) => h('tr', { key: d.date },
+              h('td', null, d.date), h('td', null, String(d.tokens || 0)), h('td', null, Object.entries(d.providers || {}).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => k + ' ' + v).join(' / ')))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, (snap.tokenBreakdown || {}).note || '按会话投影统计'),
         ),
         h(
           'section',
@@ -1185,22 +1284,92 @@ window.__ModuleLoader__.load({
           h(
             'table',
             { className: 'dsc-table dsc-matrix' },
-            h('thead', null, h('tr', null,
-              h('th', null, '密钥'),
-              ...(matrix.models || []).map((m) => h('th', { key: m }, m)),
-            )),
+            h('thead', null,
+              h('tr', null, h('th', { colSpan: 1 + visibleModels.length, style: { textAlign: 'left' } }, '模型供应商 / 可选项')),
+            ),
             h(
               'tbody',
               null,
-              (matrix.keys || []).map((k) => h('tr', { key: k.id },
-                h('td', { title: k.tasks && k.tasks.length ? '计划：' + k.tasks.join('/') : '计划：空闲' }, h('b', null, k.label)),
-                ...(matrix.models || []).map((m) => {
-                  const cell = (matrix.cells || []).find((c) => c.key === k.id && c.model === m)
-                  return h('td', { key: m, className: cell ? 'dsc-cell-busy' : '' }, cell ? `${cell.task} ${cell.busy}` : '—')
-                }),
-              )),
+              (() => {
+                const rows = []
+                const keys = matrix.keys || []
+                let i = 0
+                while (i < keys.length) {
+                  const provider = keys[i].provider || 'AMD'
+                  const group = []
+                  while (i < keys.length && (keys[i].provider || 'AMD') === provider) {
+                    group.push(keys[i])
+                    i += 1
+                  }
+                  const allProviderModels = ((matrix.providers || []).find((p) => p.name === provider) || {}).models || matrix.models || []
+                  const shownModels = allProviderModels.filter((m) => (matrix.models || []).includes(m) && selectedModels.includes(m))
+                  const buttons = allProviderModels.filter((m) => (matrix.models || []).includes(m)).map((m) => h('button', {
+                    key: m,
+                    type: 'button',
+                    className: 'dsc-chip' + (selectedModels.includes(m) ? ' on' : ''),
+                    style: { marginLeft: '6px' },
+                    onClick: () => {
+                      const next = selectedModels.includes(m) ? selectedModels.filter((x) => x !== m) : [...selectedModels, m]
+                      if (!next.length) return
+                      setSelectedModels(next)
+                      act({ type: 'setting', key: 'displayModels', value: next }, '显示模型')
+                    },
+                  }, shortModel(m) + ' · ' + (selectedModels.includes(m) ? '关闭' : '显示')))
+                  rows.push(h('tr', { key: 'vendor-' + provider, style: { background: 'var(--dsw-alias-bg-2, rgba(127,127,127,.08))' } },
+                    h('td', { colSpan: 1 + shownModels.length, style: { fontWeight: 700 } },
+                      h('span', null, provider), h('span', null, '  '), ...buttons)))
+                  rows.push(h('tr', { key: 'vendor-cols-' + provider, style: { background: 'var(--dsw-alias-bg-2, rgba(127,127,127,.05))' } },
+                    h('th', null, '密钥'),
+                    ...shownModels.map((m) => h('th', { key: m }, shortModel(m)))))
+                  for (const k of group) {
+                    rows.push(h('tr', { key: k.id },
+                      h('td', { title: k.tasks && k.tasks.length ? '计划：' + k.tasks.join('/') : '计划：空闲' },
+                        h('b', null, k.label), h('span', { className: 'dsc-hint' }, '  ' + provider)),
+                      ...shownModels.map((m) => {
+                        const cell = (matrix.cells || []).find((c) => c.key === k.id && c.model === m)
+                        return h('td', { key: m, className: cell ? 'dsc-cell-busy' : '' }, cell ? `${cell.task} ${cell.busy}` : '')
+                      }),
+                    ))
+                  }
+                }
+                return rows
+              })(),
             ),
           ),
+          h('div', { className: 'dsc-actions', style: { marginTop: '10px', alignItems: 'center' } },
+            h('input', {
+              type: 'text', value: keyProvider, placeholder: '密钥供应商，例如 AMD / WorkBuddy / 华为果办',
+              onChange: (e) => setKeyProvider(e.target.value), style: { minWidth: '220px' },
+            }),
+            h('input', {
+              type: 'password', value: keyValue, placeholder: '粘贴 API 密钥',
+              onChange: (e) => setKeyValue(e.target.value), style: { minWidth: '260px' },
+            }),
+            h('input', {
+              type: 'text', value: keyBase, placeholder: 'API 地址（OpenCode 可留空）',
+              onChange: (e) => setKeyBase(e.target.value), style: { minWidth: '260px' },
+            }),
+            h('input', {
+              type: 'text', value: keyModel, placeholder: '模型 ID（OpenCode 可留空）',
+              onChange: (e) => setKeyModel(e.target.value), style: { minWidth: '220px' },
+            }),
+            h('button', {
+              type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy),
+              onClick: async () => {
+                setKeyMsg('')
+                const result = await act({ type: 'add-key', provider: keyProvider, key: keyValue, baseUrl: keyBase, model: keyModel }, '接入密钥')
+                if (result && result.ok) {
+                  setKeyMsg(result.message || '已接入，重启 DSH 后可在模型选择里看到')
+                  setKeyValue('')
+                  setKeyProvider('')
+                  setKeyBase('')
+                  setKeyModel('')
+                } else {
+                  setKeyMsg((result && result.message) || '接入失败')
+                }
+              },
+            }, '接入密钥')),
+          keyMsg ? h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, keyMsg) : null,
           h(
             'div',
             { className: 'dsc-chips', style: { marginTop: '10px' } },
@@ -1210,7 +1379,7 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dsc-chip' }, '调度 ', h('b', null, String((snap.schedule || {}).action || '-')), ' · 目标 ', String((snap.schedule || {}).target || 0)),
           ),
           h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
-            '格子是当前实际在跑的并行 worker（免费审计最多 12 个）；校对/修复阶段只有 1 路。上限 = 账户 ' + (conc.accounts || 0) + ' × 模型 ' + (conc.models || 0) + ' × 每模型 4 路 = ' + (conc.poolMax || 0) + '。'),
+            '格子是当前实际在跑的并行 worker；模型列可以多选显示，不选的列只是隐藏，不影响调度。上限 = 账户 × 模型 × 每模型 4 路。'),
         ),
         h(
           'section',
@@ -1280,30 +1449,6 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
                 tr('sessionsDone') + ' ' + (cleanPreview.count || 0) + ' · ' + Object.entries(cleanPreview.byCwd || {}).map(([k, v]) => String(k).split('\\').slice(-2).join('\\') + ' ' + v).join('，'))
             : h('div', { className: 'dsc-hint', style: { marginTop: '8px' } }, tr('sessionsHint')),
-        ),
-        h(
-          'section',
-          { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, tr('tabCode'), h('small', null, (pipeline.checked || 0) + ' / ' + (pipeline.total || 0))),
-          h('div', { className: 'dsc-bar', style: { marginBottom: '12px' } }, h('i', { style: { width: percent + '%' } })),
-          h(
-            'div',
-            { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, tr('phase'), ' ', h('b', null, tr(PHASE_LABELS[pipeline.phase] || 'phaseIdle'))),
-            h('span', { className: 'dsc-chip' }, tr('cycle'), ' ', h('b', null, String(pipeline.cycle || 0))),
-            h('span', { className: 'dsc-chip' }, tr('round'), ' ', h('b', null, String(pipeline.round || 0))),
-            h('span', { className: 'dsc-chip' }, tr('version'), ' ', h('b', null, pipeline.version || '1.45')),
-            h('span', { className: 'dsc-chip' }, tr('lastTest'), ' ', h('b', null, pipeline.lastTest || '—')),
-            h('span', { className: 'dsc-chip' }, tr('tabBot'), ' ', h('b', null, bot.running ? tr('running') : tr('stopped'))),
-          ),
-          h(
-            'div',
-            { className: 'dsc-metrics', style: { marginTop: '14px' } },
-            h(Metric, { label: tr('findings'), value: String(pipeline.findings || 0), hint: tr('cycle') + ' ' + (pipeline.cycle || 0) }),
-            h(Metric, { label: tr('auditProgress'), value: percent + '%', hint: tr('checked') + ' ' + (pipeline.checked || 0) }),
-            h(Metric, { label: tr('restartCount'), value: String((snap.watchdog || {}).restarts || 0), hint: (snap.watchdog || {}).lastExitAt || '—' }),
-            h(Metric, { label: tr('taskMap'), value: String(((snap.tasks || []).find((t) => t.id === 'map') || {}).missingTilesets || 0), hint: tr('mapMissing') }),
-          ),
         ),
         h(
           'section',
@@ -1702,18 +1847,123 @@ window.__ModuleLoader__.load({
         if (!window.__AI_HUB_UI__) return undefined
         return window.__AI_HUB_UI__.subscribe(setModules)
       }, [])
+      const settings = snap.settings || {}
+      const savedStates = settings.modelStates && typeof settings.modelStates === 'object' ? settings.modelStates : {}
+      const stateOf = (m) => savedStates[m] || (m === 'V4.1' ? 'active' : 'disabled')
+      const activeModels = ALL_MODELS.filter((m) => stateOf(m) === 'active')
+      const backupModels = ALL_MODELS.filter((m) => stateOf(m) === 'backup')
+      const callModels = ALL_MODELS
+      const displayModels = Array.isArray(settings.displayModels) && settings.displayModels.length ? settings.displayModels : activeModels
       const tasks = snap.tasks || []
       const opt = snap.optimizer || {}
+      const toggleSetting = (key, value) => act({ type: 'setting', key, value }, '模型模块')
+      const cycleModel = (model) => {
+        const current = stateOf(model)
+        const nextState = current === 'disabled' ? 'backup' : current === 'backup' ? 'active' : 'disabled'
+        toggleSetting('modelStates', { ...savedStates, [model]: nextState })
+      }
+      const toggleDisplay = (model) => {
+        const next = displayModels.includes(model) ? displayModels.filter((m) => m !== model) : [...displayModels, model]
+        if (!next.length) return
+        toggleSetting('displayModels', next)
+      }
       const optOn = !snap.settings || snap.settings.optimizer !== false
       const scoutOn = !snap.settings || snap.settings.scout !== false
       const scoutChecked = ((snap.freePool || {}).candidates || {}).checked_at || ''
       const [thrPct, setThrPct] = React.useState(Math.round((((snap.settings || {}).idleThreshold) || 0.3) * 100))
       const [expandCount, setExpandCount] = React.useState(Number((snap.settings || {}).expandTasks) || 3)
+      const [jobTitle, setJobTitle] = React.useState('opencode-task')
+      const [jobPrompt, setJobPrompt] = React.useState('')
+      const [jobMsg, setJobMsg] = React.useState({ text: '', error: false })
+      const [jobModel, setJobModel] = React.useState('')
+      const [openFree, setOpenFree] = React.useState({ models: [], error: '' })
+      const [commander, setCommander] = React.useState({ goals: [], reports: [] })
+      const [goalText, setGoalText] = React.useState('')
+      const [goalMsg, setGoalMsg] = React.useState('')
+      const [reportText, setReportText] = React.useState('')
+      const [evalRows, setEvalRows] = React.useState([])
+      const [evalModel, setEvalModel] = React.useState('')
+      const [evalMsg, setEvalMsg] = React.useState('')
+      const [progress, setProgress] = React.useState({ sessions: { running: [] } })
+      const [recentLogs, setRecentLogs] = React.useState([])
+      const [health, setHealth] = React.useState({})
+      React.useEffect(() => {
+        const loadEval = () => fetch('/dsh-console/api/model-eval')
+          .then((r) => r.json())
+          .then((data) => setEvalRows((data && data.models) || []))
+          .catch(() => setEvalRows([]))
+        loadEval()
+        const evalTimer = setInterval(loadEval, 10000)
+        const loadProgress = () => fetch('/dsh-console/api/progress').then((r) => r.json()).then((data) => setProgress(data || { sessions: { running: [] } })).catch(() => {})
+        loadProgress()
+        const loadLogs = () => fetch('/dsh-console/api/logs?lines=30').then((r) => r.json()).then((data) => setRecentLogs((data && data.lines) || [])).catch(() => {})
+        loadLogs()
+        const loadHealth = () => fetch('/dsh-console/api/health').then((r) => r.json()).then((data) => setHealth(data || {})).catch(() => setHealth({}))
+        loadHealth()
+        const timer = setInterval(loadProgress, 5000)
+        const logTimer = setInterval(loadLogs, 10000)
+        const healthTimer = setInterval(loadHealth, 15000)
+        return () => { clearInterval(evalTimer); clearInterval(timer); clearInterval(logTimer); clearInterval(healthTimer) }
+      }, [])
+      const loadCommander = React.useCallback(() => {
+        fetch('/dsh-console/api/commander')
+          .then((r) => r.json())
+          .then((data) => setCommander({ goals: (data && data.goals) || [], reports: (data && data.reports) || [] }))
+          .catch(() => setCommander({ goals: [], reports: [] }))
+      }, [])
+      React.useEffect(() => {
+        loadCommander()
+        const timer = setInterval(loadCommander, 15000)
+        return () => clearInterval(timer)
+      }, [loadCommander])
+      React.useEffect(() => {
+        let alive = true
+        fetch('/dsh-console/api/opencode/free-models')
+          .then((r) => r.json())
+          .then((data) => {
+            if (!alive) return
+            const models = (data && data.models) || []
+            setOpenFree({ models, error: data && data.error ? String(data.error) : '' })
+            const pick = models.find((m) => stateOf(m.name) !== 'disabled') || models[0]
+            if (models[0]) setJobModel((old) => old || pick.name)
+            if (pick) setEvalModel((old) => old || pick.name)
+          })
+          .catch((e) => { if (alive) setOpenFree({ models: [], error: String((e && e.message) || e) }) })
+        return () => { alive = false }
+      }, [])
+      const openNames = (openFree.models || []).map((m) => m.name)
+      const allModelNames = [...ALL_MODELS, ...openNames]
+      const totalActive = allModelNames.filter((m) => stateOf(m) === 'active')
+      const totalBackup = allModelNames.filter((m) => stateOf(m) === 'backup')
+      const selectableOpenModels = openFree.models.filter((m) => stateOf(m.name) !== 'disabled')
+      const openEnabled = (name) => stateOf(name) !== 'disabled'
+      const setOpenAll = (state) => {
+        const next = { ...savedStates }
+        for (const name of openNames) next[name] = state
+        toggleSetting('modelStates', next)
+      }
       React.useEffect(() => {
         setThrPct(Math.round((((snap.settings || {}).idleThreshold) || 0.3) * 100))
         setExpandCount(Number((snap.settings || {}).expandTasks) || 3)
       }, [snap.settings && snap.settings.idleThreshold, snap.settings && snap.settings.expandTasks])
       const run = (id, op) => act({ type: 'hub-task', id, op }, `${id} ${op}`)
+      const dispatchJob = async () => {
+        setJobMsg({ text: '', error: false })
+        try {
+          const response = await fetch('/dsh-console/api/jobs', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'opencode', title: jobTitle, prompt: jobPrompt, model: jobModel ? 'opencode/' + jobModel : undefined }),
+          })
+          if (!response.ok) throw new Error('HTTP ' + response.status)
+          const result = await response.json()
+          const id = (result && (result.id || result.jobId || (result.job && result.job.id))) || 'job-...'
+          setJobPrompt('')
+          setJobMsg({ text: '已派发 ' + String(id), error: false })
+        } catch (failure) {
+          setJobMsg({ text: '派发失败：' + String((failure && failure.message) || failure), error: true })
+        }
+      }
       const actionLabels = {
         start: '启动',
         stop: '停止',
@@ -1737,6 +1987,142 @@ window.__ModuleLoader__.load({
         !snap.pipeline || !snap.pipeline.hasDlc
           ? h('div', { className: 'dsc-banner' }, '无插件：未安装模组插件（task-mod）。工作流页仍可打开，但不会显示代码/地图/贴图/平衡任务和操作；安装后自动出现。')
           : null,
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '运行概览'),
+          h('div', { className: 'dsc-chips' },
+            h('span', { className: 'dsc-chip' }, '会话 ', h('b', null, String(((progress.sessions || {}).running || []).length))),
+            h('span', { className: 'dsc-chip' }, 'Job running ', h('b', null, String((((progress.jobs || {}).counts || {}).running) || 0))),
+            h('span', { className: 'dsc-chip' }, '队列 ', h('b', null, String(((progress.queue || {}).queued) || 0))),
+            h('span', { className: 'dsc-chip' }, '总指挥 ', h('b', null, String((commander.goals || []).length))),
+            h('span', { className: 'dsc-chip' }, '冒烟 ', h('b', null, ((health.guard || {}).smoke || {}).ok ? 'PASS' : '—')),
+            h('span', { className: 'dsc-chip' }, '免费池 ', h('b', null, ((health.freeCooldown || {}).until || 0) > Date.now() / 1000 ? '冷却' : '可用')))),
+        h(
+          'details',
+          { className: 'dsc-card' },
+          h('summary', { className: 'dsc-sec-title', style: { cursor: 'pointer' } }, '最近日志', h('small', null, `${recentLogs.length} 行`)),
+          h('pre', { className: 'dsc-textarea', style: { minHeight: '120px', maxHeight: '240px', overflow: 'auto' } }, recentLogs.join('\n'))),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '模型模块', h('small', null, '调用 / 显示分离')),
+          h('div', { className: 'dsc-hint' }, '三态循环：不启用 → 备选 → 启用 → 不启用；调用 = 启用 + 备选，显示只决定并发矩阵列。'),
+          h('div', { className: 'dsc-chips', style: { marginTop: '8px' } },
+            h('span', { className: 'dsc-chip' }, '启用 ', h('b', null, String(totalActive.length))),
+            h('span', { className: 'dsc-chip' }, '备选 ', h('b', null, String(totalBackup.length))),
+            h('span', { className: 'dsc-chip' }, '不启用 ', h('b', null, String(allModelNames.length - totalActive.length - totalBackup.length)))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '8px' } }, '调用：'),
+          ...MODEL_GROUPS.map((g) => h('div', { key: 'call-' + g.name, className: 'dsc-chips', style: { marginTop: '6px' } },
+            h('span', { className: 'dsc-hint', style: { minWidth: '96px' } }, g.name + '：'),
+            ...g.models.map((m) => h('button', {
+              key: 'call-' + m, type: 'button',
+              className: 'dsc-chip' + (stateOf(m) === 'active' ? ' on' : ''),
+              onClick: () => cycleModel(m),
+            }, shortModel(m) + ' · ' + (stateOf(m) === 'active' ? '启用' : stateOf(m) === 'backup' ? '备选' : '不启用'))))),
+          openNames.length
+            ? h('div', { key: 'call-opencode', className: 'dsc-chips', style: { marginTop: '6px' } },
+                h('span', { className: 'dsc-hint', style: { minWidth: '96px' } }, 'OpenCode 桥接：'),
+                ...openNames.map((m) => h('button', {
+                  key: 'call-' + m, type: 'button',
+                  className: 'dsc-chip' + (stateOf(m) === 'active' ? ' on' : ''),
+                  onClick: () => cycleModel(m),
+                }, shortModel(m) + ' · ' + (stateOf(m) === 'active' ? '启用' : stateOf(m) === 'backup' ? '备选' : '不启用'))),
+                h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('active') }, '全部启用'),
+                h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('backup') }, '全部备选'),
+                h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('disabled') }, '全部关闭'))
+            : null,
+          h('div', { className: 'dsc-hint', style: { marginTop: '12px', fontWeight: 600 } }, `模型评测（${evalRows.length}）`),
+          openNames.length
+            ? h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
+                h('select', { className: 'dsc-input', value: evalModel, onChange: (e) => setEvalModel(e.target.value), style: { maxWidth: '300px' } },
+                  openNames.map((name) => h('option', { key: name, value: name }, shortModel(name)))),
+                h('button', { type: 'button', className: 'dsc-mini', onClick: async () => {
+                  setEvalMsg('评测已启动…')
+                  try {
+                    const r = await fetch('/dsh-console/api/model-eval/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: evalModel, baseUrl: 'http://127.0.0.1:8799/v1', key: 'bridge', provider: 'opencode' }) })
+                    if (!r.ok) throw new Error('HTTP ' + r.status)
+                    setEvalMsg('后台评测中，约 2-3 分钟')
+                  } catch (e) { setEvalMsg('启动失败：' + String((e && e.message) || e)) }
+                } }, '运行评测'),
+                evalMsg ? h('span', { className: 'dsc-hint' }, evalMsg) : null)
+            : null,
+          evalRows.length
+            ? h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
+                h('thead', null, h('tr', null, h('th', null, '模型'), h('th', null, '鹈鹕'), h('th', null, '逻辑'), h('th', null, 'JSON'), h('th', null, '长上下文'), h('th', null, '代码'), h('th', null, '工具诚实'), h('th', null, '跟踪'), h('th', null, '空间'), h('th', null, '指令'), h('th', null, '总分'))),
+                h('tbody', null, evalRows.slice(-10).map((row) => h('tr', { key: row.model },
+                  h('td', null, shortModel(row.model)),
+                  h('td', null, String((row.dimensions || {}).pelican || 0)),
+                  h('td', null, String((row.dimensions || {}).logic || 0)),
+                  h('td', null, String((row.dimensions || {}).json || 0)),
+                  h('td', null, String((row.dimensions || {}).needle || 0)),
+                  h('td', null, String((row.dimensions || {}).code || 0)),
+                  h('td', null, String((row.dimensions || {}).tool_honesty || 0)),
+                  h('td', null, String((row.dimensions || {}).tracking || 0)),
+                  h('td', null, String((row.dimensions || {}).spatial || 0)),
+                  h('td', null, String((row.dimensions || {}).instruction || 0)),
+                  h('td', null, String(row.score || 0))))))
+            : h('div', { className: 'dsc-hint' }, '还没有扩展评测；新模型接入或手动运行 model_eval_extended.py 后出现。'),
+        ),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'DSH 会话进度', h('small', null, `${((progress.sessions || {}).running || []).length} 个运行中`)),
+          h('div', { className: 'dsc-hint' }, `调度队列：${((progress.queue || {}).queued) || 0} 个等待${((progress.queue || {}).tasks || []).length ? ' · ' + (progress.queue.tasks || []).map((t) => t.title).join(' / ') : ''}`),
+          ((progress.sessions || {}).running || []).length
+            ? h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
+                h('thead', null, h('tr', null, h('th', null, '标题'), h('th', null, '模型'), h('th', null, '步骤'), h('th', null, '上下文'), h('th', null, '待处理'))),
+                h('tbody', null, (progress.sessions.running || []).slice(0, 8).map((s) => h('tr', { key: s.sessionId },
+                  h('td', null, s.title || s.sessionId),
+                  h('td', null, shortModel(s.model)),
+                  h('td', null, s.currentStep || `${s.turns || 0} 轮`),
+                  h('td', null, `${s.contextPct || 0}%`),
+                  h('td', null, String(s.pending || 0))))))
+            : h('div', { className: 'dsc-hint', style: { marginTop: '8px' } }, '当前没有运行中的 DSH 会话。')),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '总指挥', h('small', null, `${commander.goals.length} 个目标`)),
+          h('div', { className: 'dsc-hint' }, '一个长会话拆任务；worker 只拿任务卡；完成后写报告。'),
+          h('div', { className: 'dsc-actions', style: { marginTop: '8px' } },
+            h('button', { type: 'button', className: 'dsc-mini', onClick: loadCommander }, '刷新总指挥')),
+          h('textarea', {
+            className: 'dsc-textarea',
+            style: { minHeight: '56px', marginTop: '8px' },
+            placeholder: '给总指挥一个目标，例如：只读检查 ai-hub API 清单，不改文件',
+            value: goalText,
+            onChange: (e) => setGoalText(e.target.value),
+            spellCheck: false,
+          }),
+          h('div', { className: 'dsc-actions', style: { marginTop: '8px' } },
+            h('button', { type: 'button', className: 'dsc-btn primary', disabled: !goalText.trim(), onClick: async () => {
+              setGoalMsg('创建中…')
+              try {
+                const r = await fetch('/dsh-console/api/commander/goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ goal: goalText }) })
+                const data = await r.json()
+                if (!r.ok) throw new Error(data.message || ('HTTP ' + r.status))
+                setGoalText('')
+                setGoalMsg('已创建 ' + data.id)
+                loadCommander()
+              } catch (e) { setGoalMsg('失败：' + String((e && e.message) || e)) }
+            } }, '创建目标'),
+            goalMsg ? h('span', { className: 'dsc-hint' }, goalMsg) : null),
+          commander.goals.length
+            ? h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
+                commander.goals.slice(-4).reverse().map((g) => h('div', { key: g.id, style: { marginTop: '4px' } },
+                  h('b', null, g.id + ' · ' + (g.state || 'unknown')),
+                  g.tasks && g.tasks.length ? h('span', null, ' · ' + g.tasks.join(' / ')) : null,
+                  g.report ? h('button', { type: 'button', className: 'dsc-mini', style: { marginLeft: '6px' }, onClick: async () => {
+                    const name = String(g.report).split(/[\\/]/).pop()
+                    try {
+                      const r = await fetch('/dsh-console/api/commander/report?name=' + encodeURIComponent(name))
+                      const data = await r.json()
+                      setReportText(data.text || data.message || '')
+                    } catch (e) { setReportText(String((e && e.message) || e)) }
+                  } }, '查看报告') : null)))
+            : h('div', { className: 'dsc-hint', style: { marginTop: '8px' } }, '还没有总指挥目标。'),
+          reportText ? h('pre', { className: 'dsc-textarea', style: { minHeight: '100px', maxHeight: '240px', overflow: 'auto', marginTop: '8px' } }, reportText) : null,
+        ),
         h(
           'section',
           { className: 'dsc-card' },
@@ -1812,14 +2198,17 @@ window.__ModuleLoader__.load({
           h(
             'table',
             { className: 'dsc-table' },
-            h('thead', null, h('tr', null, h('th', null, '任务'), h('th', null, '状态'), h('th', null, '进度'), h('th', null, 'Key/并发'), h('th', null, '预计'), h('th', null, '操作'))),
+            h('thead', null, h('tr', null, h('th', null, '任务'), h('th', null, '工种'), h('th', null, '批次'), h('th', null, '状态'), h('th', null, '进度'), h('th', null, '验收'), h('th', null, 'Key/并发'), h('th', null, '预计'), h('th', null, '操作'))),
             h(
               'tbody',
               null,
               tasks.map((task) => h('tr', { key: task.id },
                 h('td', null, task.name || task.id),
+                h('td', null, task.role || '工班'),
+                h('td', null, String(task.batch || 0)),
                 h('td', null, task.state || 'idle'),
                 h('td', null, task.detail || ''),
+                h('td', null, task.acceptance || '任务指定'),
                 h('td', null, `${task.keys || 0} key / ${task.workers || 0} 路`),
                 h('td', { title: (etaMap[task.id] || {}).basis || '' }, (etaMap[task.id] || {}).eta_text || '—'),
                 h('td', null,
@@ -1838,6 +2227,187 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
             '这里只放精简状态和软启停；详细控制台在左栏「插件任务」里。'),
         ),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '异步任务', h('small', null, `${(snap.jobs || []).length} 条`)),
+          h(
+            'div',
+            { style: { marginTop: '4px' } },
+            h('input', {
+              className: 'dsc-input',
+              type: 'text',
+              value: jobTitle,
+              placeholder: '标题',
+              onChange: (e) => setJobTitle(e.target.value),
+              style: { maxWidth: '260px' },
+            }),
+            selectableOpenModels.length
+              ? h('select', {
+                  className: 'dsc-input',
+                  value: jobModel,
+                  onChange: (e) => setJobModel(e.target.value),
+                  style: { maxWidth: '260px', marginLeft: '8px' },
+                }, selectableOpenModels.map((m) => h('option', { key: m.id, value: m.name }, m.name)))
+              : null,
+            h('textarea', {
+              className: 'dsc-textarea',
+              style: { minHeight: '64px', marginTop: '8px' },
+              placeholder: '让 OpenCode 改哪个文件 / 做什么',
+              value: jobPrompt,
+              onChange: (e) => setJobPrompt(e.target.value),
+              spellCheck: false,
+            }),
+            h(
+              'div',
+              { className: 'dsc-actions', style: { marginTop: '8px' } },
+              h('button', {
+                type: 'button',
+                className: 'dsc-btn primary',
+                disabled: !jobPrompt.trim(),
+                onClick: dispatchJob,
+              }, '让 OpenCode 跑'),
+            ),
+            jobMsg.text
+              ? h('div', {
+                  className: 'dsc-hint',
+                  style: { marginTop: '6px', color: jobMsg.error ? 'var(--dsw-alias-state-error-primary)' : undefined },
+                }, jobMsg.text)
+              : null,
+          ),
+          (snap.jobs || []).length
+            ? h('table', { className: 'dsc-table' },
+                h('thead', null, h('tr', null, h('th', null, 'ID'), h('th', null, '类型'), h('th', null, '标题'), h('th', null, '状态'), h('th', null, '结果'), h('th', null, '操作'))),
+                h('tbody', null, (snap.jobs || []).slice(0, 20).map((job) => h('tr', { key: job.id },
+                  h('td', null, job.id),
+                  h('td', null, job.type || ''),
+                  h('td', null, job.title || ''),
+                  h('td', null, h('span', { className: 'dsc-state ' + (job.state || '') }, job.state || '')),
+                  h('td', null, String(job.result || job.error || job.resultRef || '').slice(0, 120)),
+                  h('td', null, job.state === 'running' || job.state === 'queued'
+                    ? h('button', { type: 'button', className: 'dsc-mini', onClick: async () => {
+                        await fetch(`/dsh-console/api/jobs/${encodeURIComponent(job.id)}/cancel`, { method: 'POST' })
+                        props.reload && props.reload()
+                      } }, '取消')
+                    : '—'))))
+              )
+            : h('div', { className: 'dsc-hint' }, '还没有异步任务；OpenCode/子代理任务会出现在这里。'),
+        ),
+      )
+    }
+
+    function ReviewView({ snap, act, busy }) {
+      const tel = snap.telemetry || {}
+      const summary = tel.summary || {}
+      const issues = tel.issues || []
+      const history = snap.taskHistory || []
+      const rows = Object.entries(summary)
+      return h(React.Fragment, null,
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '批次复盘', h('small', null, tel.updated || '暂无遥测')),
+          h('div', { className: 'dsc-actions' },
+            h('button', { type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy), onClick: () => act({ type: 'telemetry-run' }, '生成复盘') }, '重新分析'),
+            h('span', { className: 'dsc-hint' }, '按任务类型看 token / 耗时 / 异常')),
+          rows.length
+            ? h('table', { className: 'dsc-table' },
+              h('thead', null, h('tr', null, h('th', null, '类型'), h('th', null, '次数'), h('th', null, '成功'), h('th', null, '平均 token'), h('th', null, '平均秒'), h('th', null, 'token/s'))),
+              h('tbody', null, rows.map(([type, s]) => h('tr', { key: type },
+                h('td', null, type), h('td', null, String(s.runs || 0)), h('td', null, String(s.ok || 0)),
+                h('td', null, String(s.avg_tokens || 0)), h('td', null, String(s.avg_seconds || 0)),
+                h('td', null, String(s.tokens_per_second || 0))))))
+            : h('div', { className: 'dsc-hint' }, '还没有批次遥测；跑一批任务后自动出现。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '异常工单', h('small', null, `${issues.length} 条`)),
+          issues.length
+            ? h('table', { className: 'dsc-table' },
+              h('thead', null, h('tr', null, h('th', null, '类型'), h('th', null, '任务'), h('th', null, '原因'), h('th', null, 'token'), h('th', null, '秒'))),
+              h('tbody', null, issues.slice(0, 20).map((x, i) => h('tr', { key: i },
+                h('td', null, x.type || ''), h('td', null, x.id || ''), h('td', null, x.reason || ''),
+                h('td', null, String(x.tokens || 0)), h('td', null, String(x.seconds || 0))))))
+            : h('div', { className: 'dsc-hint' }, '没有异常批次。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '最近操作', h('small', null, `${history.length} 条`)),
+          history.length
+            ? h('div', { className: 'dsc-hint' }, history.slice(-12).reverse().map((x) => `${x.at || ''} · ${x.id || ''} · ${x.op || ''}`).join('\n'))
+            : h('div', { className: 'dsc-hint' }, '还没有审核/接管记录。')),
+      )
+    }
+
+    function ScheduleView() {
+      const [items, setItems] = React.useState([])
+      const [error, setError] = React.useState('')
+      const load = React.useCallback(async () => {
+        try {
+          const r = await call(`/dsh-console/api/schedules?t=${Date.now()}`)
+          setItems(r.items || [])
+          setError(r.ok === false ? (r.message || 'schedule service 不可用') : '')
+        } catch (e) {
+          setError(String((e && e.message) || e))
+        }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const remove = async (item) => {
+        const r = await call('/dsh-console/api/schedules', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId: item.sessionId, id: item.id }),
+        })
+        if (r && r.deleted) load()
+      }
+      return h('section', { className: 'dsc-card' },
+        h('h3', { className: 'dsc-sec-title' }, '定时任务', h('small', null, `${items.length} 条`)),
+        error ? h('div', { className: 'dsc-banner err' }, error) : null,
+        items.length
+          ? h('table', { className: 'dsc-table' },
+            h('thead', null, h('tr', null,
+              h('th', null, '标题'), h('th', null, '类型'), h('th', null, '时间'),
+              h('th', null, '状态'), h('th', null, '操作'))),
+            h('tbody', null, items.map((x) => h('tr', { key: x.id },
+              h('td', null, x.title || x.id),
+              h('td', null, x.kind || ''),
+              h('td', null, x.scheduledAt || ''),
+              h('td', null, x.status || ''),
+              h('td', null, h('button', { type: 'button', className: 'dsc-mini', onClick: () => remove(x) }, '删除'))))))
+          : h('div', { className: 'dsc-hint' }, '没有定时任务。'))
+    }
+
+    function XdPoolPanel() {
+      const [data, setData] = React.useState(null)
+      const load = React.useCallback(async () => {
+        try {
+          const [xd, prov] = await Promise.all([
+            call(`/dsh-console/api/xdpool?t=${Date.now()}`),
+            call(`/dsh-console/api/providers?t=${Date.now()}`),
+          ])
+          setData({ xd: xd || {}, prov: prov || {} })
+        } catch (e) {
+          setData({ xd: { installed: false, message: String(e) }, prov: {} })
+        }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const xd = (data && data.xd) || {}
+      const st = xd.status || {}
+      const prov = (data && data.prov) || {}
+      return h('div', { className: 'dsc-root', style: { padding: '4px' } },
+        h('style', null, CSS),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'XD Pool 控制面板', h('small', null, xd.installed ? '宿主已加载' : '未安装')),
+          xd.installed
+            ? h(React.Fragment, null,
+              h('div', { className: 'dsc-chips' },
+                h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String((st.accounts || []).length))),
+                h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String((st.models || []).length))),
+                h('span', { className: 'dsc-chip' }, '冷却 ', h('b', null, String(st.cooling || 0))),
+                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String((((xd.aggregate || {}).providers) || []).length)))),
+              h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
+                '账号池、扫码登录、76 家聚合渠道由 XD Pool 宿主维护；这里提供状态和统一模型视图。'))
+            : h('div', { className: 'dsc-hint' }, xd.message || '未检测到 XD Pool。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '统一模型来源', h('small', null, 'GET /dsh-console/api/providers')),
+          h('div', { className: 'dsc-chips' },
+            ...((prov.sources || []).map((s) => h('span', { key: s.id, className: 'dsc-chip' },
+              s.name || s.id, ' ', h('b', null, String(s.models || 0)))))),
+          h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
+            h('button', { type: 'button', className: 'dsc-btn primary', onClick: load }, '刷新'))),
       )
     }
 
@@ -1850,11 +2420,11 @@ window.__ModuleLoader__.load({
       const [toast, setToast] = React.useState(null)
       const [tab, setTab] = React.useState('home')
 
-      const load = React.useCallback(async () => {
+      const load = React.useCallback(async (force = false) => {
         let lastError = null
         for (let attempt = 0; attempt < 3; attempt += 1) {
           try {
-            const data = await call(`${STATUS_URL}?t=${Date.now()}`)
+            const data = await call(`${STATUS_URL}?t=${Date.now()}${force ? '&refresh=1' : ''}`)
             setSnap(data)
             setError(null)
             return
@@ -1971,7 +2541,7 @@ window.__ModuleLoader__.load({
               h('span', { className: 'dsc-pill' + ((snap.balanceLoop || {}).state === 'running' ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBalance') + ' ' + ((snap.balanceLoop || {}).state === 'running' ? tr('running') : tr('stopped'))),
               h('span', { className: 'dsc-pill' + (bot.running ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBot') + ' ' + (bot.running ? tr('running') : tr('stopped'))),
               h('button', { type: 'button', className: 'dsc-btn', onClick: () => setAutoRefresh(!autoRefresh), title: tr('autoRefreshDesc') }, tr('autoRefresh') + '：' + (autoRefresh ? tr('on') : tr('off'))),
-              h('button', { type: 'button', className: 'dsc-btn', onClick: load, disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
+              h('button', { type: 'button', className: 'dsc-btn', onClick: () => load(true), disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
             ),
           ),
           h(
@@ -1980,6 +2550,9 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'home' ? ' is-on' : ''), onClick: () => setTab('home') }, tr('tabHome')),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'workflow' ? ' is-on' : ''), onClick: () => setTab('workflow') }, tr('tabWorkflow')),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'free' ? ' is-on' : ''), onClick: () => setTab('free') }, '免费池'),
+            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'review' ? ' is-on' : ''), onClick: () => setTab('review') }, '复盘'),
+            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'schedule' ? ' is-on' : ''), onClick: () => setTab('schedule') }, '定时'),
+            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'settings' ? ' is-on' : ''), onClick: () => setTab('settings') }, '设置'),
             h('button', { type: 'button', className: 'dsc-tab' + (tab === 'bot' ? ' is-on' : ''), onClick: () => setTab('bot') }, tr('tabBot')),
           ),
           error ? h('div', { className: 'dsc-banner err' }, error) : null,
@@ -1995,13 +2568,43 @@ window.__ModuleLoader__.load({
               ? h(WorkflowView, { snap, tr, act, busy })
               : tab === 'free'
                 ? h(FreePoolView, { snap, act, busy })
-                : h(BotView, { snap, act, busy, tr }),
+                : tab === 'review'
+                  ? h(ReviewView, { snap, act, busy })
+                  : tab === 'schedule'
+                    ? h(ScheduleView, null)
+                    : tab === 'settings'
+                      ? h(XdPoolPanel, null)
+                      : h(BotView, { snap, act, busy, tr }),
           toast ? h('div', { className: 'dsc-toast' + (toast.tone === 'err' ? ' err' : '') }, toast.text) : null,
         ),
       )
     }
 
     function FreePoolView({ snap, act, busy }) {
+      const [xd, setXd] = React.useState(null)
+      const [prov, setProv] = React.useState(null)
+      const [fm, setFm] = React.useState(null)
+      const [fmq, setFmq] = React.useState('')
+      const [reg, setReg] = React.useState({ items: [] })
+      const loadFm = React.useCallback((q = '') => {
+        call(`/dsh-console/api/free-models?q=${encodeURIComponent(q)}&t=${Date.now()}`)
+          .then((data) => setFm(data || { models: [] }))
+          .catch(() => setFm({ models: [] }))
+      }, [])
+      React.useEffect(() => {
+        let alive = true
+        call(`/dsh-console/api/xdpool?t=${Date.now()}`)
+          .then((data) => { if (alive) setXd(data || { installed: false }) })
+          .catch(() => { if (alive) setXd({ installed: false }) })
+        call(`/dsh-console/api/providers?t=${Date.now()}`)
+          .then((data) => { if (alive) setProv(data || {}) })
+          .catch(() => { if (alive) setProv({ sources: [] }) })
+        loadFm('')
+        call(`/dsh-console/api/registration?t=${Date.now()}`)
+          .then((data) => { if (alive) setReg(data || { items: [] }) })
+          .catch(() => { if (alive) setReg({ items: [] }) })
+        return () => { alive = false }
+      }, [loadFm])
       const fp = snap.freePool || {}
       const sched = snap.scheduler || {}
       const auto = snap.autoscale || {}
@@ -2015,6 +2618,63 @@ window.__ModuleLoader__.load({
       return h(
         React.Fragment,
         null,
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '免费池侦察档案', h('small', null, cand.checked_at || '还没侦察过')),
+          h('div', { className: 'dsc-chips' },
+            h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, String((cand.sources || []).length))),
+            h('span', { className: 'dsc-chip' }, '候选 ', h('b', null, String(providers.length))),
+            h('span', { className: 'dsc-chip' }, '登记 ', h('b', null, String((fm && fm.total) || 0)))),
+          providers.length
+            ? h('table', { className: 'dsc-table', style: { marginTop: '10px' } },
+                h('thead', null, h('tr', null, h('th', null, '名称'), h('th', null, '免费额度'), h('th', null, 'Base URL'))),
+                h('tbody', null, providers.slice(0, 8).map((p, i) => h('tr', { key: i },
+                  h('td', null, p.name || ''),
+                  h('td', null, String(p.free_quota || '').slice(0, 100)),
+                  h('td', null, p.base_url || p.key_url || '')))))
+            : h('div', { className: 'dsc-hint' }, '暂无侦察内容；点下方“开始侦察”。'),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, '完整候选和注册信息在下方卡片。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '模型来源（统一 API）', h('small', null, (prov && prov.version ? 'v' + prov.version : '可选'))),
+          h('div', { className: 'dsc-chips' },
+            ...((prov && prov.sources) || []).map((s) => h('span', { key: s.id, className: 'dsc-chip' },
+              s.name || s.id, ' ', h('b', null, String(s.models || 0))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+            'GET /dsh-console/api/providers；统一返回 source / model / state，供调度器直接消费。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '免费模型注册入口', h('small', null, `${(reg.items || []).length} 个`)),
+          h('div', { className: 'dsc-hint' }, '只读入口：需要验证码、邮箱或手机号；插件不自动提交注册。'),
+          (reg.items || []).length
+            ? h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
+                h('thead', null, h('tr', null, h('th', null, '入口'), h('th', null, '免费额度'), h('th', null, '绑卡'), h('th', null, '检查时间'))),
+                h('tbody', null, (reg.items || []).slice(0, 20).map((item, i) => h('tr', { key: item.url || i },
+                  h('td', null, h('a', { href: item.url, target: '_blank', rel: 'noreferrer' }, item.url || '')),
+                  h('td', null, String(item.free_quota || '—').slice(0, 80)),
+                  h('td', null, String(item.card_required || '—')),
+                  h('td', null, String(item.checked_at || '—'))))))
+            : h('div', { className: 'dsc-hint' }, '还没有注册入口；跑一次免费池侦察。')),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '免费模型登记', h('small', null, (fm && fm.total !== undefined ? fm.total + ' 条' : '加载中'))),
+          h('div', { className: 'dsc-actions' },
+            h('input', {
+              type: 'text', value: fmq, placeholder: '搜索来源 / 模型 / 额度 / 绑卡',
+              onChange: (e) => setFmq(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter') loadFm(fmq) },
+              style: { minWidth: '240px' },
+            }),
+            h('button', { type: 'button', className: 'dsc-btn primary', onClick: () => loadFm(fmq) }, '搜索')),
+          h('table', { className: 'dsc-table', style: { marginTop: '10px' } },
+            h('thead', null, h('tr', null,
+              h('th', null, '来源'), h('th', null, '模型'), h('th', null, '状态'),
+              h('th', null, '绑卡'), h('th', null, '免费额度'), h('th', null, 'IQ'))),
+            h('tbody', null, ((fm && fm.models) || []).slice(0, 30).map((m, i) => h('tr', { key: m.model || m.provider || i },
+              h('td', null, m.source || ''),
+              h('td', null, m.model || m.provider || ''),
+              h('td', null, m.status || ''),
+              h('td', null, m.card_required || '—'),
+              h('td', null, String(m.free_quota || m.quota || '—').slice(0, 60)),
+              h('td', null, m.iq_score !== undefined ? String(m.iq_score) : '—'))))),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+            'IQ 限流会自动按 10/20/40 分钟退避重试，结果写回 registry。')),
         h('section', { className: 'dsc-card' },
           h('h3', { className: 'dsc-sec-title' }, '素材 / GitHub', h('small', null, assets.updated || '')),
           h('div', { className: 'dsc-chips' },
