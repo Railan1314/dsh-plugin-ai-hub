@@ -22,7 +22,9 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 ### Features
 
 - Task overview: code, map, texture and balance tasks with batch, progress, workers and keys
-- Concurrency matrix: local key pool × models, busy and idle slots
+- Concurrency matrix: local key pool × models, busy and idle slots, per-model show/hide
+- Model module: three states per model (disabled / backup / active), all provider pools listed
+- Schedule tab: read and delete DSH scheduled tasks
 - Auto-scaling: start extra workers when idle slots exceed a threshold
 - Free-pool discovery: parse public GitHub lists into provider candidates, base URLs and free quotas
 - Map tools: wish-based naming, spawn/resource validation, diff checks
@@ -127,7 +129,9 @@ AI 调度台是一个本机优先的 DSH 调度插件。它观察你机器上的
 ### 功能
 
 - 任务总览：代码、地图、贴图、平衡的状态、批次、进度、worker/key
-- 并发矩阵：本地 key 池 × 模型，显示实际占用和空闲槽位
+- 并发矩阵：本地 key 池 × 模型，显示实际占用和空闲槽位，可按模型显示/关闭
+- 模型模块：不启用 / 备选 / 启用三态，所有池子模型都列出
+- 定时页：读取 DSH 定时任务并支持删除
 - 自动扩展：空闲槽位超过阈值时拉起额外任务
 - 免费池侦察：解析公开 GitHub 清单，输出 provider、base URL、免费额度
 - 地图工具：许愿式命名、出生点/矿校验、差异化检查
