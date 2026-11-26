@@ -20,7 +20,7 @@
 ## 3. 仓库建议
 
 ```text
-dsh-plugin-ds-console/
+dsh-plugin-ai-hub/
   package.json
   index.js
   client.js
@@ -36,7 +36,7 @@ dsh-plugin-ds-console/
 
 ```json
 {
-  "name": "dsh-plugin-ds-console",
+  "name": "dsh-plugin-ai-hub",
   "version": "2.1.0",
   "description": "DSH 左栏调度台：任务、并发、免费池、地图/贴图/平衡工具",
   "keywords": ["dsh", "dsh-plugin", "scheduler", "dashboard"]
@@ -49,13 +49,13 @@ dsh-plugin-ds-console/
 
 ```json
 {
-  "name": "dsh-plugin-ds-console",
+  "name": "dsh-plugin-ai-hub",
   "title": { "en": "DSH Console", "zh": "AI 调度台" },
   "description": {
     "en": "Task, concurrency and local tool dashboard for DSH.",
     "zh": "DSH 左栏调度台：任务、并发、免费池和本机工具。"
   },
-  "repo": "https://github.com/<you>/dsh-plugin-ds-console",
+  "repo": "https://github.com/<you>/dsh-plugin-ai-hub",
   "category": "tools"
 }
 ```

@@ -1,5 +1,5 @@
 /**
- * dsh-plugin-ds-console — 宿主半（Host half）。
+ * dsh-plugin-ai-hub — 宿主半（Host half）。
  *
  * 两块能力：
  *  1) 流水线守护：原来外置的 tools\watchdog_dsh.py 变成常驻插件，

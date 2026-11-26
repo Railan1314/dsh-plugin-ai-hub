@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ai-hub",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "private": false,
   "description": "AI 调度台（主机）：密钥池 / 并发 / 任务注册 / 大肥鱼；任务由 DLC 插件注册",
   "type": "module",
@@ -32,7 +32,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Railan1314/dsh-plugin-ds-console.git"
+    "url": "https://github.com/Railan1314/dsh-plugin-ai-hub.git"
   },
   "publishConfig": {
     "access": "public"

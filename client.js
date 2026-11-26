@@ -1,5 +1,5 @@
 /**
- * dsh-plugin-ds-console — 浏览器半（Client half）。
+ * dsh-plugin-ai-hub — 浏览器半（Client half）。
  *
  * 左栏「进程守护台」主面板，两个页签：
  *  - 流水线：状态、审计进度、工序、开关、启停、日志

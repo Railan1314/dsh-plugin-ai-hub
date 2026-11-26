@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.1
+
+- GitHub 仓库统一更名为 `dsh-plugin-ai-hub`，与 npm 包名、插件 id 对齐
+- 更新 package repository/homepage、README 克隆与 issue 链接、market entry
+
 ## 2.9.0
 
 - 新增「会话雷达」：主页按工作区分组展示运行中/最近会话，含状态、轮次、ctx%、最后活跃；支持投递和打断，不显示对话内容

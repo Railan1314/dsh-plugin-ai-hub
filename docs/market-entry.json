@@ -1,5 +1,5 @@
 {
-  "name": "dsh-plugin-ds-console",
+  "name": "dsh-plugin-ai-hub",
   "title": {
     "en": "AI Console",
     "zh": "AI 调度台"
@@ -8,7 +8,7 @@
     "en": "DSH left-sidebar scheduler: tasks, concurrency, free-pool discovery and local tools.",
     "zh": "DSH 左栏调度台：任务、并发、免费池和本机工具。"
   },
-  "repo": "https://github.com/Railan1314/dsh-plugin-ds-console",
+  "repo": "https://github.com/Railan1314/dsh-plugin-ai-hub",
   "category": "tools",
   "keywords": [
     "dsh-plugin",

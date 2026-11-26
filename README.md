@@ -54,7 +54,7 @@ It started as a process watcher for a mod pipeline that used free AI. The free p
 5. Open **AI Console** from the left sidebar.
 
 ```powershell
-git clone https://github.com/Railan1314/dsh-plugin-ds-console.git
+git clone https://github.com/Railan1314/dsh-plugin-ai-hub.git
 ```
 
 ### npm
@@ -162,7 +162,7 @@ AI 调度台是一个本机优先的 DSH 调度插件。它观察你机器上的
 5. 从左栏打开 **AI 调度台**
 
 ```powershell
-git clone https://github.com/Railan1314/dsh-plugin-ds-console.git
+git clone https://github.com/Railan1314/dsh-plugin-ai-hub.git
 ```
 
 没有 npm 构建步骤，插件是普通 ES module。
@@ -221,5 +221,5 @@ MIT. See [LICENSE](LICENSE).
 
 ## Links
 
-- Issues: https://github.com/Railan1314/dsh-plugin-ds-console/issues
-- Releases: https://github.com/Railan1314/dsh-plugin-ds-console/releases
+- Issues: https://github.com/Railan1314/dsh-plugin-ai-hub/issues
+- Releases: https://github.com/Railan1314/dsh-plugin-ai-hub/releases
