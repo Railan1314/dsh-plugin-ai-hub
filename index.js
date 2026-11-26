@@ -2814,18 +2814,13 @@ function createConsole(ctx) {
           continue
         }
         const cache = readJson(join(process.env.USERPROFILE || '', '.dsh', 'storages', 'session_projcache', 'sessions', `${sid}.json`), {})
-        let running = false
-        try {
-          running = Boolean(ctx.agents && ctx.agents.get(sid))
-        } catch {
-          running = false
-        }
         const rowsTitle = cache.record && cache.record.rows && cache.record.rows.title
         const rows = (cache.record && cache.record.rows) || {}
         const lastModel = ((rows.modelSelection || {}).val || {}).lastUsed || {}
         const totals = ((rows.tokenUsage || {}).val || {}).totals || {}
         const pressure = (rows.contextPressure || {}).val || {}
         const stats = (rows.sessionStats || {}).val || {}
+        const activity = sessionActivity(sid, mtime, Boolean(stats.openStep))
         const uq = ((rows.userQuestions || {}).val || {}).questions || {}
         const inbox = (rows.inbox || {}).val || {}
         const pending = [].concat(uq.active || [], inbox['next-turn'] || [], inbox['next-step'] || []).length
@@ -2837,7 +2832,8 @@ function createConsole(ctx) {
           sessionId: sid,
           workspace: ws,
           title: (rowsTitle && rowsTitle.val) || (cache.record && cache.record.title) || cache.title || '',
-          running,
+          running: activity.running,
+          stale: activity.stale,
           lastActive: mtime ? new Date(mtime).toISOString() : null,
           bytes: size,
           model: lastModel.model || '',
@@ -2996,12 +2992,80 @@ function createConsole(ctx) {
     return { auto: false, why: '无标题但保留', ...row }
   }
 
-  function sessionRunning(id) {
-    try {
-      return Boolean(ctx.agents && ctx.agents.get(id))
-    } catch {
-      return false
+  const SESSION_FRESH_MS = 10 * 60 * 1000
+  const SESSION_STALE_MS = 30 * 60 * 1000
+  const SESSION_GC = new Set()
+
+  function agentLiveness(agent) {
+    if (!agent) return false
+    for (const key of ['disposed', 'isDisposed', 'closed', 'isClosed']) {
+      try {
+        if (agent[key] === true) return false
+      } catch {
+        /* ignore */
+      }
     }
+    try {
+      const state = String(agent.state || agent.status || '').toLowerCase()
+      if (['disposed', 'closed', 'ended', 'stopped'].includes(state)) return false
+    } catch {
+      /* ignore */
+    }
+    return true
+  }
+
+  function reclaimAgent(id, agent) {
+    if (!agent) return false
+    for (const key of ['dispose', 'close', 'destroy']) {
+      try {
+        const fn = agent[key]
+        if (typeof fn !== 'function') continue
+        const result = fn.call(agent)
+        if (result && typeof result.catch === 'function') result.catch(() => {})
+        log(`回收已结束会话 agent ${id}`)
+        return true
+      } catch {
+        /* try next */
+      }
+    }
+    return false
+  }
+
+  /**
+   * 唯一 running 判断：
+   * agent 存在 && 未超过 30 分钟 stale && （10 分钟内有写入 || 确实有进行中的 turn）。
+   * 超过 30 分钟无写入的 agent 尝试回收；不把仅存在 agent 当成 running。
+   */
+  function sessionActivity(id, lastWriteMs, activeTurn = false) {
+    let agent = null
+    try {
+      agent = ctx.agents && ctx.agents.get(id)
+    } catch {
+      agent = null
+    }
+    if (!agent || !agentLiveness(agent)) {
+      if (agent && !SESSION_GC.has(id)) {
+        SESSION_GC.add(id)
+        reclaimAgent(id, agent)
+      }
+      return { running: false, stale: false, hasAgent: Boolean(agent), activeTurn: Boolean(activeTurn) }
+    }
+    const age = Number(lastWriteMs) > 0 ? Date.now() - Number(lastWriteMs) : Number.POSITIVE_INFINITY
+    const stale = age > SESSION_STALE_MS
+    if (stale && !activeTurn && !SESSION_GC.has(id)) {
+      SESSION_GC.add(id)
+      reclaimAgent(id, agent)
+    }
+    return {
+      running: !stale && (age <= SESSION_FRESH_MS || Boolean(activeTurn)),
+      stale,
+      hasAgent: true,
+      activeTurn: Boolean(activeTurn),
+    }
+  }
+
+  function sessionRunning(id, lastWriteMs = 0, activeTurn = false) {
+    return sessionActivity(id, lastWriteMs, activeTurn).running
   }
 
   function collectSessions(rootDir, archived) {
@@ -3045,6 +3109,7 @@ function createConsole(ctx) {
         } catch {
           /* ignore */
         }
+        const activity = sessionActivity(sid, st.mtimeMs, false)
         items.push({
           sessionId: sid,
           workspace: ws,
@@ -3057,7 +3122,8 @@ function createConsole(ctx) {
           turns: kind.turns,
           mtime: st.mtimeMs,
           bytes,
-          running: sessionRunning(sid),
+          running: activity.running,
+          stale: activity.stale,
         })
       }
     }
