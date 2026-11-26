@@ -2135,7 +2135,7 @@ function createConsole(ctx) {
             const parsed = JSON.parse(result)
             if (parsed.returncode !== undefined && Number(parsed.returncode) !== 0) {
               job.state = 'failed'
-              job.error = String(parsed.stderr || parsed.text || `worker returncode ${parsed.returncode}`).slice(-800)
+              job.error = String(parsed.error || parsed.stderr || parsed.text || `worker returncode ${parsed.returncode}`).slice(-800)
             } else if (String(parsed.text || '').trim().length === 0 && !(Array.isArray(parsed.copied) && parsed.copied.length)) {
               job.state = 'failed'
               job.error = 'worker 完成但没有输出或产物'
@@ -4121,6 +4121,23 @@ function createConsole(ctx) {
         sendJson(res, 200, { ok: Boolean(health && health.ok), running: Boolean(health && health.ok), pid: child.pid, endpoint: 'http://127.0.0.1:8330/v1', health })
       } catch (error) {
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/mod-code' || route === 'mod-code')) {
+      try {
+        const query = String(new URL(req.url || '/', 'http://localhost').searchParams.get('q') || '').trim()
+        const limit = Math.max(1, Math.min(20, Number(new URL(req.url || '/', 'http://localhost').searchParams.get('limit') || 8) || 8))
+        if (!query) {
+          sendJson(res, 400, { ok: false, error: 'q required' })
+          return
+        }
+        const raw = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'mod_code_index.py'), '--query', query, '--limit', String(limit), '--json'], { cwd: root, encoding: 'utf8', timeout: 30000, windowsHide: true })
+        const text = String(raw || '').trim()
+        sendJson(res, 200, JSON.parse(text.slice(text.indexOf('{'))))
+      } catch (error) {
+        sendJson(res, 200, { ok: false, error: String((error && error.message) || error).slice(0, 400) })
       }
       return
     }
