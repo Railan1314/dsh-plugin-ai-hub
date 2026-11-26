@@ -1424,24 +1424,27 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         let alive = true
         const load = () => Promise.all([
+          fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
           fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
           fetch('/plugins/dsh-xdpool/relay').then((r) => r.json()).catch(() => ({})),
-        ]).then(([xd, relay]) => { if (alive) setData({ xd: xd || {}, relay: relay || {} }) }).catch(() => { if (alive) setData(null) })
+        ]).then(([wb, xd, relay]) => { if (alive) setData({ wb: wb || {}, xd: xd || {}, relay: relay || {} }) }).catch(() => { if (alive) setData(null) })
         load()
         const timer = setInterval(load, 15000)
         return () => { alive = false; clearInterval(timer) }
       }, [])
       const xd = (data && data.xd) || {}
-      if (!xd.installed) return null
-      const accounts = (xd.status || {}).accounts || []
-      const models = (xd.status || {}).models || []
-      const credits = accounts.reduce((sum, a) => sum + Number((a.credits || {}).total || 0), 0)
+      const wb = (data && data.wb) || {}
+      if (!xd.installed && !wb.ok) return null
+      const accounts = Array.isArray(wb.accounts) && wb.accounts.length ? wb.accounts : ((xd.status || {}).accounts || [])
+      const models = Array.isArray(wb.models) && wb.models.length ? wb.models : ((xd.status || {}).models || [])
+      const credits = wb.total !== undefined ? Number(wb.total || 0) : accounts.reduce((sum, a) => sum + Number((a.credits || {}).total || 0), 0)
       const listening = Boolean((data && data.relay || {}).listening)
       return h('div', { className: 'dsc-provider-row' },
         h('b', null, 'WorkBuddy / XD Pool'),
         h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(accounts.length))),
         h('span', { className: 'dsc-chip' }, '积分 ', h('b', null, String(credits))),
         h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String(models.length))),
+        h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, wb.models && wb.models.length ? 'native' : 'XD Pool')),
         h('span', { className: 'dsc-key-state ' + (listening ? 'available' : 'idle') }, listening ? '网关监听中' : '网关未启用'),
         onOpen ? h('button', { type: 'button', className: 'dsc-mini', onClick: onOpen }, '去模型模块配置') : null)
     }
@@ -2161,7 +2164,10 @@ window.__ModuleLoader__.load({
       const refreshWorkbuddy = React.useCallback(() => Promise.all([
         fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
         fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
-      ]).then(([wb, xd]) => setWorkbuddy({ ...(wb || {}), aggregate: (xd || {}).aggregate || null, xdModels: ((xd || {}).status || {}).models || [], xdAccounts: ((xd || {}).status || {}).accounts || [] })).catch(() => setWorkbuddy({ ok: false })), [])
+      ]).then(([wb, xd]) => {
+        const nativeModels = wb && Array.isArray(wb.models) && wb.models.length ? wb.models : (((xd || {}).status || {}).models || [])
+        setWorkbuddy({ ...(wb || {}), aggregate: (xd || {}).aggregate || null, xdModels: nativeModels, xdAccounts: ((xd || {}).status || {}).accounts || [] })
+      }).catch(() => setWorkbuddy({ ok: false })), [])
       React.useEffect(() => {
         const loadEval = () => fetch('/dsh-console/api/model-eval')
           .then((r) => r.json())
