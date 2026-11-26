@@ -1,209 +1,215 @@
 # Changelog
 
+## 2.9.2
+
+- 模型模块增加 WorkBuddy/XD Pool 桥接控制与模型清单
+- 主页并发矩阵增加 WorkBuddy/XD Pool 只读行（账号/积分/模型/网关状态）
+- 补充 XD Pool 流程文档，明确 companion bridge 与 OpenCode 桥的区别
+
 ## 2.9.1
 
-- GitHub 仓库统一更名为 `dsh-plugin-ai-hub`，与 npm 包名、插件 id 对齐
-- 更新 package repository/homepage、README 克隆与 issue 链接、market entry
+- GitHub 浠撳簱缁熶竴鏇村悕涓?`dsh-plugin-ai-hub`锛屼笌 npm 鍖呭悕銆佹彃浠?id 瀵归綈
+- 鏇存柊 package repository/homepage銆丷EADME 鍏嬮殕涓?issue 閾炬帴銆乵arket entry
 
 ## 2.9.0
 
-- 新增「会话雷达」：主页按工作区分组展示运行中/最近会话，含状态、轮次、ctx%、最后活跃；支持投递和打断，不显示对话内容
-- 总指挥切换 DeepSeek V4 Pro，只做拆解与验收；新增独立 Pro 限流、Provider fallback 日志和可执行验收校验
-- 新增 quota_type（daily/decay/paid）调度排序，AMD 按 /v1/usage 剩余额度选 key，paid job 标记
-- 新增 WorkBuddy 原生账号/积分读取、XD Pool 网关控制和单 key 统一免费入口原型
-- 免费模型评测支持 provider/keyName、latency_ms、tokens 和单次延时/token 探测
-- 情报雷达新增 B站搜索、小米社区热议、热门榜和多源均衡
-- 修复 DeepSeek 官方 `deepseek-flash` 显示为 V4f 的缩写问题
+- 鏂板銆屼細璇濋浄杈俱€嶏細涓婚〉鎸夊伐浣滃尯鍒嗙粍灞曠ず杩愯涓?鏈€杩戜細璇濓紝鍚姸鎬併€佽疆娆°€乧tx%銆佹渶鍚庢椿璺冿紱鏀寔鎶曢€掑拰鎵撴柇锛屼笉鏄剧ず瀵硅瘽鍐呭
+- 鎬绘寚鎸ュ垏鎹?DeepSeek V4 Pro锛屽彧鍋氭媶瑙ｄ笌楠屾敹锛涙柊澧炵嫭绔?Pro 闄愭祦銆丳rovider fallback 鏃ュ織鍜屽彲鎵ц楠屾敹鏍￠獙
+- 鏂板 quota_type锛坉aily/decay/paid锛夎皟搴︽帓搴忥紝AMD 鎸?/v1/usage 鍓╀綑棰濆害閫?key锛宲aid job 鏍囪
+- 鏂板 WorkBuddy 鍘熺敓璐﹀彿/绉垎璇诲彇銆乆D Pool 缃戝叧鎺у埗鍜屽崟 key 缁熶竴鍏嶈垂鍏ュ彛鍘熷瀷
+- 鍏嶈垂妯″瀷璇勬祴鏀寔 provider/keyName銆乴atency_ms銆乼okens 鍜屽崟娆″欢鏃?token 鎺㈡祴
+- 鎯呮姤闆疯揪鏂板 B绔欐悳绱€佸皬绫崇ぞ鍖虹儹璁€佺儹闂ㄦ鍜屽婧愬潎琛?
+- 淇 DeepSeek 瀹樻柟 `deepseek-flash` 鏄剧ず涓?V4f 鐨勭缉鍐欓棶棰?
 
 ## 2.8.1
 
-- 隐藏后台 PowerShell/Python 子进程窗口，减少偶发弹窗
+- 闅愯棌鍚庡彴 PowerShell/Python 瀛愯繘绋嬬獥鍙ｏ紝鍑忓皯鍋跺彂寮圭獥
 
 ## 2.8.0
 
-- 统一进度/队列/日志/总指挥 API 与页面
-- 模型评测 9 维与自动刷新
-- health_guard 定期冒烟、辅助进程热重载
-- 免费额度熔断、空输出判失败、job 历史清理
+- 缁熶竴杩涘害/闃熷垪/鏃ュ織/鎬绘寚鎸?API 涓庨〉闈?
+- 妯″瀷璇勬祴 9 缁翠笌鑷姩鍒锋柊
+- health_guard 瀹氭湡鍐掔儫銆佽緟鍔╄繘绋嬬儹閲嶈浇
+- 鍏嶈垂棰濆害鐔旀柇銆佺┖杈撳嚭鍒ゅけ璐ャ€乯ob 鍘嗗彶娓呯悊
 
 ## 2.7.0
 
-- 统一定位/进度 API、MCP、A2A agent card
-- 模型评测 9 维、模型模块三态、OpenCode 免费模型动态读取
-- job 幂等/失败换模型账号/健康守护/自动恢复
-- 模组页 AI 任务和模型选择、DSH 会话进度
-- 注册入口、API 清单、冒烟 15 项
+- 缁熶竴瀹氫綅/杩涘害 API銆丮CP銆丄2A agent card
+- 妯″瀷璇勬祴 9 缁淬€佹ā鍨嬫ā鍧椾笁鎬併€丱penCode 鍏嶈垂妯″瀷鍔ㄦ€佽鍙?
+- job 骞傜瓑/澶辫触鎹㈡ā鍨嬭处鍙?鍋ュ悍瀹堟姢/鑷姩鎭㈠
+- 妯＄粍椤?AI 浠诲姟鍜屾ā鍨嬮€夋嫨銆丏SH 浼氳瘽杩涘害
+- 娉ㄥ唽鍏ュ彛銆丄PI 娓呭崟銆佸啋鐑?15 椤?
 
 ## 2.6.2
 
-- job 状态改为彩色徽标，running/succeeded/failed/cancelled 更易区分
-- 表格列对比增强
+- job 鐘舵€佹敼涓哄僵鑹插窘鏍囷紝running/succeeded/failed/cancelled 鏇存槗鍖哄垎
+- 琛ㄦ牸鍒楀姣斿寮?
 
 ## 2.6.1
 
-- 工作流新增总指挥卡片：目标、状态、报告
-- 总指挥状态每 15 秒刷新
+- 宸ヤ綔娴佹柊澧炴€绘寚鎸ュ崱鐗囷細鐩爣銆佺姸鎬併€佹姤鍛?
+- 鎬绘寚鎸ョ姸鎬佹瘡 15 绉掑埛鏂?
 
 ## 2.6.0
 
-- 新增 /api/commander，总指挥状态和报告可被 QQ bot/脚本读取
-- 修复 worker 非零退出误报 succeeded，历史错误记录自动纠正
+- 鏂板 /api/commander锛屾€绘寚鎸ョ姸鎬佸拰鎶ュ憡鍙 QQ bot/鑴氭湰璇诲彇
+- 淇 worker 闈為浂閫€鍑鸿鎶?succeeded锛屽巻鍙查敊璇褰曡嚜鍔ㄧ籂姝?
 
 ## 2.5.9
 
-- 修复 worker returncode 非零却显示 succeeded：已成功记录也会自动纠正为 failed
-- OpenCode 免费模型并入模型模块三态显示
+- 淇 worker returncode 闈為浂鍗存樉绀?succeeded锛氬凡鎴愬姛璁板綍涔熶細鑷姩绾犳涓?failed
+- OpenCode 鍏嶈垂妯″瀷骞跺叆妯″瀷妯″潡涓夋€佹樉绀?
 
 ## 2.5.8
 
-- OpenCode 免费模型并入模型模块，使用同样的启用/备选/不启用三态
-- 只显示去重后的模型，不按账号重复
-- 异步派发只列出已启用/备选模型
+- OpenCode 鍏嶈垂妯″瀷骞跺叆妯″瀷妯″潡锛屼娇鐢ㄥ悓鏍风殑鍚敤/澶囬€?涓嶅惎鐢ㄤ笁鎬?
+- 鍙樉绀哄幓閲嶅悗鐨勬ā鍨嬶紝涓嶆寜璐﹀彿閲嶅
+- 寮傛娲惧彂鍙垪鍑哄凡鍚敤/澶囬€夋ā鍨?
 
 ## 2.5.7
 
-- OpenCode 免费模型从客户端动态读取，不再按账号显示 9 个同名模型
-- 工作流新增 OpenCode 免费模型启用开关
-- 异步派发可选择免费模型
+- OpenCode 鍏嶈垂妯″瀷浠庡鎴风鍔ㄦ€佽鍙栵紝涓嶅啀鎸夎处鍙锋樉绀?9 涓悓鍚嶆ā鍨?
+- 宸ヤ綔娴佹柊澧?OpenCode 鍏嶈垂妯″瀷鍚敤寮€鍏?
+- 寮傛娲惧彂鍙€夋嫨鍏嶈垂妯″瀷
 
 ## 2.5.6
 
-- 新增 free job：AMD headless worker，支持 audit/review 免费执行
-- worker 非零退出正确标记 failed，不再误报 succeeded
-- free 失败自动回退 OpenCode
+- 鏂板 free job锛欰MD headless worker锛屾敮鎸?audit/review 鍏嶈垂鎵ц
+- worker 闈為浂閫€鍑烘纭爣璁?failed锛屼笉鍐嶈鎶?succeeded
+- free 澶辫触鑷姩鍥為€€ OpenCode
 
 ## 2.5.5
 
-- 修复 /api/local-search 多行 JSON 解析，冒烟全 PASS
-- job 账号轮换与模型冷却
-- commander 验收汇总
+- 淇 /api/local-search 澶氳 JSON 瑙ｆ瀽锛屽啋鐑熷叏 PASS
+- job 璐﹀彿杞崲涓庢ā鍨嬪喎鍗?
+- commander 楠屾敹姹囨€?
 
 ## 2.5.4
 
-- 异步 job 支持指定 OpenCode account
-- 调度失败重试时轮换免费模型和账号
-- 健康守护/本地检索/commander 工具
+- 寮傛 job 鏀寔鎸囧畾 OpenCode account
+- 璋冨害澶辫触閲嶈瘯鏃惰疆鎹㈠厤璐规ā鍨嬪拰璐﹀彿
+- 鍋ュ悍瀹堟姢/鏈湴妫€绱?commander 宸ュ叿
 
 ## 2.5.3
 
-- 所有模型使用带版本/档位缩写：V4.1f、V4p、GLM-5.3f、Gemma-4-31B
-- 表格列区分、统一 API、健康守护
+- 鎵€鏈夋ā鍨嬩娇鐢ㄥ甫鐗堟湰/妗ｄ綅缂╁啓锛歏4.1f銆乂4p銆丟LM-5.3f銆丟emma-4-31B
+- 琛ㄦ牸鍒楀尯鍒嗐€佺粺涓€ API銆佸仴搴峰畧鎶?
 
 ## 2.5.2
 
-- /api/manifest 随插件发布，统一 API 清单
-- /api/local-search 本地资料检索
-- 表格列区分与模型简称
+- /api/manifest 闅忔彃浠跺彂甯冿紝缁熶竴 API 娓呭崟
+- /api/local-search 鏈湴璧勬枡妫€绱?
+- 琛ㄦ牸鍒楀尯鍒嗕笌妯″瀷绠€绉?
 
 ## 2.5.1
 
-- 表格列分隔/表头对比优化
-- 新增 /api/manifest 与 /api/local-search 本地资料检索
-- GLM-5.3f 等模型简称
+- 琛ㄦ牸鍒楀垎闅?琛ㄥご瀵规瘮浼樺寲
+- 鏂板 /api/manifest 涓?/api/local-search 鏈湴璧勬枡妫€绱?
+- GLM-5.3f 绛夋ā鍨嬬畝绉?
 
 ## 2.5.0
 
-- 表格列增加分隔线和表头对比，矩阵供应商段更清晰
-- 模型简称 GLM-5.3f；OpenCode 1~9 加入模型模块
-- 新 provider 自动 IQ 探针；主动调度器按角色路由
-- GitHub 生态调研报告归档
+- 琛ㄦ牸鍒楀鍔犲垎闅旂嚎鍜岃〃澶村姣旓紝鐭╅樀渚涘簲鍟嗘鏇存竻鏅?
+- 妯″瀷绠€绉?GLM-5.3f锛汷penCode 1~9 鍔犲叆妯″瀷妯″潡
+- 鏂?provider 鑷姩 IQ 鎺㈤拡锛涗富鍔ㄨ皟搴﹀櫒鎸夎鑹茶矾鐢?
+- GitHub 鐢熸€佽皟鐮旀姤鍛婂綊妗?
 
 ## 2.4.9
 
-- GLM 显示为带版本号缩写（GLM-5.3f）
-- 新接入 provider 自动跑鹈鹕 IQ，分数写入 dsh_config.model_iq
-- 新增主动调度器 auto_scheduler.py，按 IQ 分数派发队列任务
+- GLM 鏄剧ず涓哄甫鐗堟湰鍙风缉鍐欙紙GLM-5.3f锛?
+- 鏂版帴鍏?provider 鑷姩璺戦箞楣?IQ锛屽垎鏁板啓鍏?dsh_config.model_iq
+- 鏂板涓诲姩璋冨害鍣?auto_scheduler.py锛屾寜 IQ 鍒嗘暟娲惧彂闃熷垪浠诲姟
 
 ## 2.4.8
 
-- 模型简称：V4.1f / V4f / GLM / Gemma，用于并发矩阵和工作流
-- OpenCode token 统计并入 bridge 台账，cache_read 计入
-- Token 缓存会随 ledger 变更失效
+- 妯″瀷绠€绉帮細V4.1f / V4f / GLM / Gemma锛岀敤浜庡苟鍙戠煩闃靛拰宸ヤ綔娴?
+- OpenCode token 缁熻骞跺叆 bridge 鍙拌处锛宑ache_read 璁″叆
+- Token 缂撳瓨浼氶殢 ledger 鍙樻洿澶辨晥
 
 ## 2.4.7
 
-- 模型模块新增 OpenCode 1~9 桥接分组
-- 删除工作流底部显示列区域
-- OpenCode token 台账并入供应商统计，包含 cache_read
-- 文档补充异步任务/密钥接入/npm 安装
+- 妯″瀷妯″潡鏂板 OpenCode 1~9 妗ユ帴鍒嗙粍
+- 鍒犻櫎宸ヤ綔娴佸簳閮ㄦ樉绀哄垪鍖哄煙
+- OpenCode token 鍙拌处骞跺叆渚涘簲鍟嗙粺璁★紝鍖呭惈 cache_read
+- 鏂囨。琛ュ厖寮傛浠诲姟/瀵嗛挜鎺ュ叆/npm 瀹夎
 
 ## 2.4.6
 
-- 模型模块新增 OpenCode 1~9 桥接分组
-- 删除工作流底部无用的显示列区域
-- OpenCode token 统计包含 cache_read，修复 step_finish 解析
+- 妯″瀷妯″潡鏂板 OpenCode 1~9 妗ユ帴鍒嗙粍
+- 鍒犻櫎宸ヤ綔娴佸簳閮ㄦ棤鐢ㄧ殑鏄剧ず鍒楀尯鍩?
+- OpenCode token 缁熻鍖呭惈 cache_read锛屼慨澶?step_finish 瑙ｆ瀽
 
 ## 2.4.5
 
-- 首屏状态缓存：Token/额度快照冷启动直接读盘
-- OpenCode 子进程统一隐藏控制台窗口
-- 并发矩阵按供应商独立列
+- 棣栧睆鐘舵€佺紦瀛橈細Token/棰濆害蹇収鍐峰惎鍔ㄧ洿鎺ヨ鐩?
+- OpenCode 瀛愯繘绋嬬粺涓€闅愯棌鎺у埗鍙扮獥鍙?
+- 骞跺彂鐭╅樀鎸変緵搴斿晢鐙珛鍒?
 
 ## 2.4.4
 
-- OpenCode 桥接会话复用：后续请求只带最后一条用户消息 + --session
-- OpenCode 免费模型 fallback 到 big-pickle/tidepool/flint/mimo
-- OpenCode 产出的模型按钮选中态样式合并
+- OpenCode 妗ユ帴浼氳瘽澶嶇敤锛氬悗缁姹傚彧甯︽渶鍚庝竴鏉＄敤鎴锋秷鎭?+ --session
+- OpenCode 鍏嶈垂妯″瀷 fallback 鍒?big-pickle/tidepool/flint/mimo
+- OpenCode 浜у嚭鐨勬ā鍨嬫寜閽€変腑鎬佹牱寮忓悎骞?
 
 ## 2.4.3
 
-- OpenCode 任务派发表单：标题 + 提示词 + 一键派发
-- 桥接免费模型 fallback：DeepSeek 限额后自动切 big-pickle / tidepool / flint
-- 并发矩阵按供应商独立模型列
+- OpenCode 浠诲姟娲惧彂琛ㄥ崟锛氭爣棰?+ 鎻愮ず璇?+ 涓€閿淳鍙?
+- 妗ユ帴鍏嶈垂妯″瀷 fallback锛欴eepSeek 闄愰鍚庤嚜鍔ㄥ垏 big-pickle / tidepool / flint
+- 骞跺彂鐭╅樀鎸変緵搴斿晢鐙珛妯″瀷鍒?
 
 ## 2.4.2
 
-- 异步 job 总线：/api/jobs、/api/event、取消、进程回收、OpenCode worker
-- OpenCode 1~4 本地桥接与四端口
-- 并发矩阵表头改为「模型供应商/可选项」+「密钥/模型」两行
-- 未知 Token 历史归入 AMD，OpenCode 单独统计
+- 寮傛 job 鎬荤嚎锛?api/jobs銆?api/event銆佸彇娑堛€佽繘绋嬪洖鏀躲€丱penCode worker
+- OpenCode 1~4 鏈湴妗ユ帴涓庡洓绔彛
+- 骞跺彂鐭╅樀琛ㄥご鏀逛负銆屾ā鍨嬩緵搴斿晢/鍙€夐」銆?銆屽瘑閽?妯″瀷銆嶄袱琛?
+- 鏈煡 Token 鍘嗗彶褰掑叆 AMD锛孫penCode 鍗曠嫭缁熻
 
 ## 2.4.1
 
-- 免费池侦察档案置顶显示，侦察空结果不覆盖旧数据
-- 新增按供应商/每日 Token 消耗表，未知历史消耗归入 AMD
-- 并发矩阵模型按钮移入各密钥供应商分组
-- 密钥输入框可注册 DSH provider，支持直连/本地 OpenCode 桥接自动选择
-- Token 统计与异步任务规划
+- 鍏嶈垂姹犱睛瀵熸。妗堢疆椤舵樉绀猴紝渚﹀療绌虹粨鏋滀笉瑕嗙洊鏃ф暟鎹?
+- 鏂板鎸変緵搴斿晢/姣忔棩 Token 娑堣€楄〃锛屾湭鐭ュ巻鍙叉秷鑰楀綊鍏?AMD
+- 骞跺彂鐭╅樀妯″瀷鎸夐挳绉诲叆鍚勫瘑閽ヤ緵搴斿晢鍒嗙粍
+- 瀵嗛挜杈撳叆妗嗗彲娉ㄥ唽 DSH provider锛屾敮鎸佺洿杩?鏈湴 OpenCode 妗ユ帴鑷姩閫夋嫨
+- Token 缁熻涓庡紓姝ヤ换鍔¤鍒?
 
 ## 2.4.0
 
-- XD Pool 伴侣：只读账号池、模型、聚合渠道
-- 统一模型来源 API：`/dsh-console/api/providers`
-- 免费模型登记页：搜索、验证状态、绑卡、额度、IQ
-- 定时任务页：读取 DSH schedule 并支持删除
-- 三态模型选择：不启用 / 备选 / 启用，所有池子模型都列出
-- 并发矩阵支持按模型显示/关闭
-- key 角色分工：amd1–7 代码，amd8–13 地图/平衡，借用可识别
-- 修复 `/api/sessions` 标题读取，QQ `/sessions` 可列出主对话
-- 注册抓取回填、IQ 429 退避队列、统一 source provider 接口
+- XD Pool 浼翠荆锛氬彧璇昏处鍙锋睜銆佹ā鍨嬨€佽仛鍚堟笭閬?
+- 缁熶竴妯″瀷鏉ユ簮 API锛歚/dsh-console/api/providers`
+- 鍏嶈垂妯″瀷鐧昏椤碉細鎼滅储銆侀獙璇佺姸鎬併€佺粦鍗°€侀搴︺€両Q
+- 瀹氭椂浠诲姟椤碉細璇诲彇 DSH schedule 骞舵敮鎸佸垹闄?
+- 涓夋€佹ā鍨嬮€夋嫨锛氫笉鍚敤 / 澶囬€?/ 鍚敤锛屾墍鏈夋睜瀛愭ā鍨嬮兘鍒楀嚭
+- 骞跺彂鐭╅樀鏀寔鎸夋ā鍨嬫樉绀?鍏抽棴
+- key 瑙掕壊鍒嗗伐锛歛md1鈥? 浠ｇ爜锛宎md8鈥?3 鍦板浘/骞宠　锛屽€熺敤鍙瘑鍒?
+- 淇 `/api/sessions` 鏍囬璇诲彇锛孮Q `/sessions` 鍙垪鍑轰富瀵硅瘽
+- 娉ㄥ唽鎶撳彇鍥炲～銆両Q 429 閫€閬块槦鍒椼€佺粺涓€ source provider 鎺ュ彛
 
 ## 2.3.0
 
-- 模型三态：不启用 / 备选 / 启用，点击循环切换
-- 调用列表展示所有池子：AMD 免费池与 DeepSeek 官方
-- 首次只启用 V4.1，其余模型显示但不启用
-- 并发矩阵恢复按模型列显示/关闭
-- 工作流新增「模型模块」：调用与显示分离
-- 新增「定时」页：读取 DSH schedule 服务并支持删除
-- DSH 状态接口缓存，降低插件打开延迟
-- 复盘页、任务历史、工时/验收字段
+- 妯″瀷涓夋€侊細涓嶅惎鐢?/ 澶囬€?/ 鍚敤锛岀偣鍑诲惊鐜垏鎹?
+- 璋冪敤鍒楄〃灞曠ず鎵€鏈夋睜瀛愶細AMD 鍏嶈垂姹犱笌 DeepSeek 瀹樻柟
+- 棣栨鍙惎鐢?V4.1锛屽叾浣欐ā鍨嬫樉绀轰絾涓嶅惎鐢?
+- 骞跺彂鐭╅樀鎭㈠鎸夋ā鍨嬪垪鏄剧ず/鍏抽棴
+- 宸ヤ綔娴佹柊澧炪€屾ā鍨嬫ā鍧椼€嶏細璋冪敤涓庢樉绀哄垎绂?
+- 鏂板銆屽畾鏃躲€嶉〉锛氳鍙?DSH schedule 鏈嶅姟骞舵敮鎸佸垹闄?
+- DSH 鐘舵€佹帴鍙ｇ紦瀛橈紝闄嶄綆鎻掍欢鎵撳紑寤惰繜
+- 澶嶇洏椤点€佷换鍔″巻鍙层€佸伐鏃?楠屾敹瀛楁
 
 ## 2.2.0
 
-- 工单卡统一字段：工种、批次、验收
-- 工作流表新增「工种 / 批次 / 验收」列
-- 新增「复盘」页：按任务类型看 token / 耗时 / 异常
-- 任务历史与操作记录进入状态快照
-- 遥测分析可手动重新生成
-- task-mod 批次字段：地图、贴图、平衡
+- 宸ュ崟鍗＄粺涓€瀛楁锛氬伐绉嶃€佹壒娆°€侀獙鏀?
+- 宸ヤ綔娴佽〃鏂板銆屽伐绉?/ 鎵规 / 楠屾敹銆嶅垪
+- 鏂板銆屽鐩樸€嶉〉锛氭寜浠诲姟绫诲瀷鐪?token / 鑰楁椂 / 寮傚父
+- 浠诲姟鍘嗗彶涓庢搷浣滆褰曡繘鍏ョ姸鎬佸揩鐓?
+- 閬ユ祴鍒嗘瀽鍙墜鍔ㄩ噸鏂扮敓鎴?
+- task-mod 鎵规瀛楁锛氬湴鍥俱€佽创鍥俱€佸钩琛?
 
 ## 2.1.0
 
-- 任务控制 API：`status / soft-stop / stop / takeover / resume / review / approve`
-- 任务历史归档：`tools/task_history.json`
-- 批次字段：地图、贴图、平衡显示批次
-- 工具接口扩充：GitHub、社区素材、浏览器搜索、素材索引、自检
-- 免费池候选解析：provider、base URL、免费额度
-- 任务遥测：按任务类型记录 token / 耗时
-- README / RELEASE 发布材料
+- 浠诲姟鎺у埗 API锛歚status / soft-stop / stop / takeover / resume / review / approve`
+- 浠诲姟鍘嗗彶褰掓。锛歚tools/task_history.json`
+- 鎵规瀛楁锛氬湴鍥俱€佽创鍥俱€佸钩琛℃樉绀烘壒娆?
+- 宸ュ叿鎺ュ彛鎵╁厖锛欸itHub銆佺ぞ鍖虹礌鏉愩€佹祻瑙堝櫒鎼滅储銆佺礌鏉愮储寮曘€佽嚜妫€
+- 鍏嶈垂姹犲€欓€夎В鏋愶細provider銆乥ase URL銆佸厤璐归搴?
+- 浠诲姟閬ユ祴锛氭寜浠诲姟绫诲瀷璁板綍 token / 鑰楁椂
+- README / RELEASE 鍙戝竷鏉愭枡

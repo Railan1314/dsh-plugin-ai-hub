@@ -632,6 +632,8 @@ window.__ModuleLoader__.load({
 .dsc-matrix tbody tr:nth-child(even),.dsc-matrix tbody tr:nth-child(-n+3){background:transparent}
 .dsc-matrix tbody tr:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsc-matrix .dsc-cell-busy{color:var(--dsw-alias-state-business-primary);font-weight:600}
+.dsc-provider-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px dashed var(--dsw-alias-border-l1);font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.dsc-provider-row>b{color:var(--dsw-alias-label-primary);font-weight:650}
 .dsc-key-state{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;font-size:10px;line-height:15px;border:1px solid transparent;white-space:nowrap}
 .dsc-key-state.available{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 28%,transparent)}
 .dsc-key-state.used{color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-label-secondary) 12%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-label-secondary) 22%,transparent)}
@@ -1417,6 +1419,34 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function WorkBuddyConcurrency({ onOpen }) {
+      const [data, setData] = React.useState(null)
+      React.useEffect(() => {
+        let alive = true
+        const load = () => Promise.all([
+          fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
+          fetch('/plugins/dsh-xdpool/relay').then((r) => r.json()).catch(() => ({})),
+        ]).then(([xd, relay]) => { if (alive) setData({ xd: xd || {}, relay: relay || {} }) }).catch(() => { if (alive) setData(null) })
+        load()
+        const timer = setInterval(load, 15000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [])
+      const xd = (data && data.xd) || {}
+      if (!xd.installed) return null
+      const accounts = (xd.status || {}).accounts || []
+      const models = (xd.status || {}).models || []
+      const credits = accounts.reduce((sum, a) => sum + Number((a.credits || {}).total || 0), 0)
+      const listening = Boolean((data && data.relay || {}).listening)
+      return h('div', { className: 'dsc-provider-row' },
+        h('b', null, 'WorkBuddy / XD Pool'),
+        h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(accounts.length))),
+        h('span', { className: 'dsc-chip' }, '积分 ', h('b', null, String(credits))),
+        h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String(models.length))),
+        h('span', { className: 'dsc-key-state ' + (listening ? 'available' : 'idle') }, listening ? '网关监听中' : '网关未启用'),
+        onOpen ? h('button', { type: 'button', className: 'dsc-mini', onClick: onOpen }, '去模型模块配置') : null)
+    }
+
+
     function OverviewView(props) {
       const { snap, tr, onOpen, act, busy } = props
       const [cleanPreview, setCleanPreview] = React.useState(null)
@@ -1564,6 +1594,7 @@ window.__ModuleLoader__.load({
               })(),
             ),
           ),
+          h(WorkBuddyConcurrency, { onOpen }),
           h('div', { className: 'dsc-actions', style: { marginTop: '10px', alignItems: 'center' } },
             h('input', {
               type: 'text', value: keyProvider, placeholder: '密钥供应商，例如 AMD / WorkBuddy / 华为果办',
@@ -2127,6 +2158,10 @@ window.__ModuleLoader__.load({
       const [gatewayMsg, setGatewayMsg] = React.useState('')
       const [freeGateway, setFreeGateway] = React.useState(null)
       const [freeGatewayMsg, setFreeGatewayMsg] = React.useState('')
+      const refreshWorkbuddy = React.useCallback(() => Promise.all([
+        fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
+        fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
+      ]).then(([wb, xd]) => setWorkbuddy({ ...(wb || {}), aggregate: (xd || {}).aggregate || null, xdModels: ((xd || {}).status || {}).models || [], xdAccounts: ((xd || {}).status || {}).accounts || [] })).catch(() => setWorkbuddy({ ok: false })), [])
       React.useEffect(() => {
         const loadEval = () => fetch('/dsh-console/api/model-eval')
           .then((r) => r.json())
@@ -2140,10 +2175,7 @@ window.__ModuleLoader__.load({
         loadLogs()
         const loadHealth = () => fetch('/dsh-console/api/health').then((r) => r.json()).then((data) => setHealth(data || {})).catch(() => setHealth({}))
         loadHealth()
-        const loadWorkbuddy = () => Promise.all([
-          fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
-          fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
-        ]).then(([wb, xd]) => setWorkbuddy({ ...(wb || {}), aggregate: (xd || {}).aggregate || null })).catch(() => setWorkbuddy({ ok: false }))
+        const loadWorkbuddy = refreshWorkbuddy
         loadWorkbuddy()
         const loadGateway = () => fetch('/plugins/dsh-xdpool/relay', { credentials: 'same-origin' }).then((r) => r.json()).then((data) => { setGateway(data || null); if (data && data.port && !gatewayPort) setGatewayPort(String(data.port)) }).catch(() => setGateway(null))
         loadGateway()
@@ -2236,6 +2268,7 @@ window.__ModuleLoader__.load({
       }
       const etaMap = Object.fromEntries((((snap.eta || {}).items) || []).map((item) => [item.id, item]))
       const aggregateProviders = ((workbuddy.aggregate || {}).providers) || []
+      const xdModels = Array.isArray(workbuddy.xdModels) ? workbuddy.xdModels : []
       const usefulAggregate = aggregateProviders.filter((x) => x.configured || x.enabled || x.category === 'local' || x.category === 'free').length
       return h(
         React.Fragment,
@@ -2392,6 +2425,34 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('backup') }, '全部备选'),
                 h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('disabled') }, '全部关闭'))
             : null,
+          h('div', { key: 'call-workbuddy', className: 'dsc-chips', style: { marginTop: '6px' } },
+            h('span', { className: 'dsc-hint', style: { minWidth: '96px' } }, 'WorkBuddy 桥接：'),
+            h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String(xdModels.length))),
+            ...xdModels.slice(0, 8).map((m) => h('span', { key: 'wb-' + (m.id || m.name || m), className: 'dsc-chip' }, String((m && (m.name || m.id)) || m).slice(0, 18))),
+            xdModels.length > 8 ? h('span', { className: 'dsc-hint' }, `+${xdModels.length - 8}`) : null),
+          h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
+            h('span', { className: 'dsc-key-state ' + (gateway && gateway.listening ? 'available' : 'idle') }, gateway && gateway.listening ? '网关监听中' : '网关未启用'),
+            h('input', { className: 'dsc-input', value: gatewayPort, onChange: (e) => setGatewayPort(e.target.value), placeholder: '端口', style: { width: '82px' } }),
+            h('button', {
+              type: 'button', className: 'dsc-mini',
+              onClick: async () => {
+                setGatewayMsg(gateway && gateway.enabled ? '停用中…' : '启用中…')
+                try {
+                  const r = await fetch('/plugins/dsh-xdpool/relay', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(gateway && gateway.enabled ? { enabled: false } : { enabled: true, host: '127.0.0.1', port: Number(gatewayPort) || 8327 }),
+                  })
+                  const next = await r.json()
+                  if (!r.ok) throw new Error(next.error || 'HTTP ' + r.status)
+                  setGateway(next)
+                  setGatewayMsg(next.listening ? '网关已启用' : '已启用但未监听')
+                } catch (e) { setGatewayMsg('操作失败：' + String((e && e.message) || e)) }
+              },
+            }, gateway && gateway.enabled ? '停用网关' : '启用网关'),
+            h('button', { type: 'button', className: 'dsc-mini', onClick: () => refreshWorkbuddy() }, '刷新模型'),
+            gatewayMsg ? h('span', { className: 'dsc-hint' }, gatewayMsg) : null),
+          h('div', { className: 'dsc-hint', style: { marginTop: '4px' } }, 'WorkBuddy 模型通过 XD Pool 本地网关暴露，控制放在模型模块；网关未启用时只能看清单。'),
           h('div', { className: 'dsc-hint', style: { marginTop: '12px', fontWeight: 600 } }, `模型评测（${evalRows.length}）`),
           h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
             h('input', { className: 'dsc-input', value: evalq, placeholder: '按模型 / 供应商 / 密钥筛选', onChange: (e) => setEvalq(e.target.value), style: { flex: '1', minWidth: '220px' } }),
