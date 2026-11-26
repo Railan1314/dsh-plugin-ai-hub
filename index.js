@@ -2158,7 +2158,7 @@ function createConsole(ctx) {
         }
         changed = true
         jobLog(`${job.id} ${job.state}${result ? ' result-found' : ''}`)
-      } else if (job.pid && age > Number(job.timeoutMinutes || 30) * 60 * 1000) {
+      } else if (job.pid && age > Number(job.meta && job.meta.timeoutMinutes || job.timeoutMinutes || 30) * 60 * 1000) {
         job.state = 'stale'
         job.error = job.error || '超过超时时间且没有完成事件'
         job.updatedAt = new Date().toISOString()
@@ -2201,6 +2201,7 @@ function createConsole(ctx) {
     if (payload.paid === true || payload.quotaType === 'paid') job.meta.paid = true
     if (payload.keyName) job.meta.keyName = String(payload.keyName)
     if (payload.account) job.meta.account = String(payload.account)
+    if (payload.timeoutMinutes) job.meta.timeoutMinutes = Math.max(5, Math.min(180, Number(payload.timeoutMinutes) || 30))
     data.jobs[id] = job
     if (type === 'opencode' || type === 'subagent') {
       const workspace = join(root, '..', '任务', 'opencode_workspaces', id)
@@ -2210,6 +2211,7 @@ function createConsole(ctx) {
       for (const item of payload.copy || []) args.push('--copy', String(item))
       args.push('--model', String(payload.model || 'opencode/big-pickle'))
       if (payload.account) args.push('--account', String(payload.account))
+      args.push('--timeout', String(Math.max(300, Number(job.meta.timeoutMinutes || 30) * 60)))
       args.push('--prompt', String(payload.prompt || ''))
       try {
         const proc = spawn(settings.python || 'python', args, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
@@ -2227,7 +2229,7 @@ function createConsole(ctx) {
       const workspace = join(root, '..', '任务', 'opencode_workspaces', id)
       job.meta.workspace = workspace
       job.meta.resultFile = join(workspace, 'free_result.json')
-      const args = ['-X', 'utf8', join(root, 'tools', 'free_job_runner.py'), '--task', String(payload.prompt || ''), '--workspace', workspace, '--timeout', String(Number(payload.timeout) || 900)]
+      const args = ['-X', 'utf8', join(root, 'tools', 'free_job_runner.py'), '--task', String(payload.prompt || ''), '--workspace', workspace, '--timeout', String(Math.max(300, Number(job.meta.timeoutMinutes || 30) * 60))]
       if (payload.keyName) args.push('--key-name', String(payload.keyName))
       try {
         const proc = spawn(settings.python || 'python', args, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
@@ -4119,6 +4121,16 @@ function createConsole(ctx) {
         sendJson(res, 200, { ok: Boolean(health && health.ok), running: Boolean(health && health.ok), pid: child.pid, endpoint: 'http://127.0.0.1:8330/v1', health })
       } catch (error) {
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/aggregate/audit' || route === 'aggregate/audit')) {
+      const report = readJson(join(root, 'tools', 'aggregate_channels_report.json'), null)
+      if (!report) {
+        sendJson(res, 200, { ok: false, error: '还没有聚合渠道审计报告；先运行 tools/aggregate_audit.py' })
+      } else {
+        sendJson(res, 200, { ok: true, ...report, native_ok: Boolean(report.native_workbuddy && report.native_workbuddy.ok), stale: true })
       }
       return
     }

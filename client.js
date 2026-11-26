@@ -2831,12 +2831,13 @@ window.__ModuleLoader__.load({
       const [data, setData] = React.useState(null)
       const load = React.useCallback(async () => {
         try {
-          const [xd, prov, wb] = await Promise.all([
+          const [xd, prov, wb, audit] = await Promise.all([
             call(`/dsh-console/api/xdpool?t=${Date.now()}`),
             call(`/dsh-console/api/providers?t=${Date.now()}`),
             call(`/dsh-console/api/workbuddy?t=${Date.now()}`).catch(() => ({ ok: false })),
+            call(`/dsh-console/api/aggregate/audit?t=${Date.now()}`).catch(() => ({ ok: false })),
           ])
-          setData({ xd: xd || {}, prov: prov || {}, wb: wb || {} })
+          setData({ xd: xd || {}, prov: prov || {}, wb: wb || {}, audit: audit || {} })
         } catch (e) {
           setData({ xd: { installed: false, message: String(e) }, prov: {}, wb: { ok: false } })
         }
@@ -2846,6 +2847,7 @@ window.__ModuleLoader__.load({
       const st = xd.status || {}
       const prov = (data && data.prov) || {}
       const wb = (data && data.wb) || {}
+      const audit = (data && data.audit) || {}
       const nativeAccounts = Array.isArray(wb.accounts) ? wb.accounts : []
       const accounts = nativeAccounts.length ? nativeAccounts : (Array.isArray(st.accounts) ? st.accounts : [])
       const credits = wb.total !== undefined ? Number(wb.total || 0) : accounts.reduce((sum, a) => sum + Number(((a || {}).credits || {}).total || 0), 0)
@@ -2871,7 +2873,10 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'dsc-chip' }, '积分来源 ', h('b', null, wb.source || 'xdpool')),
                 h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String((st.models || []).length))),
                 h('span', { className: 'dsc-chip' }, '冷却 ', h('b', null, String(st.cooling || 0))),
-                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String(configuredAgg) + '/' + String(aggregate.length)))),
+                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String(configuredAgg) + '/' + String(aggregate.length))),
+                h('span', { className: 'dsc-chip' }, '免费池匹配 ', h('b', null, String((audit.free_pool || {}).matched || 0))),
+                h('span', { className: 'dsc-chip' }, '可补源 ', h('b', null, String((audit.free_pool || {}).unmatched || 0))),
+                h('span', { className: 'dsc-chip' }, '原生网关 ', h('b', null, audit.native_ok ? '健康' : '未运行'))),
               h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
                 '账号池、扫码登录、76 家聚合渠道由 XD Pool 宿主维护；WorkBuddy 账号和积分现在优先直读本地账号文件 + WorkBuddy billing，不再只依赖伴侣 API。'))
             : h('div', { className: 'dsc-hint' }, xd.message || '未检测到 XD Pool。')),
