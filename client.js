@@ -1426,8 +1426,9 @@ window.__ModuleLoader__.load({
         const load = () => Promise.all([
           fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
           fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
+          fetch('/dsh-console/api/workbuddy/gateway').then((r) => r.json()).catch(() => ({})),
           fetch('/plugins/dsh-xdpool/relay').then((r) => r.json()).catch(() => ({})),
-        ]).then(([wb, xd, relay]) => { if (alive) setData({ wb: wb || {}, xd: xd || {}, relay: relay || {} }) }).catch(() => { if (alive) setData(null) })
+        ]).then(([wb, xd, native, relay]) => { if (alive) setData({ wb: wb || {}, xd: xd || {}, native: native || {}, relay: relay || {} }) }).catch(() => { if (alive) setData(null) })
         load()
         const timer = setInterval(load, 15000)
         return () => { alive = false; clearInterval(timer) }
@@ -1438,14 +1439,14 @@ window.__ModuleLoader__.load({
       const accounts = Array.isArray(wb.accounts) && wb.accounts.length ? wb.accounts : ((xd.status || {}).accounts || [])
       const models = Array.isArray(wb.models) && wb.models.length ? wb.models : ((xd.status || {}).models || [])
       const credits = wb.total !== undefined ? Number(wb.total || 0) : accounts.reduce((sum, a) => sum + Number((a.credits || {}).total || 0), 0)
-      const listening = Boolean((data && data.relay || {}).listening)
+      const listening = Boolean((data && data.native || {}).running) || Boolean((data && data.relay || {}).listening)
       return h('div', { className: 'dsc-provider-row' },
         h('b', null, 'WorkBuddy / XD Pool'),
         h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(accounts.length))),
         h('span', { className: 'dsc-chip' }, '积分 ', h('b', null, String(credits))),
         h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String(models.length))),
         h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, wb.models && wb.models.length ? 'native' : 'XD Pool')),
-        h('span', { className: 'dsc-key-state ' + (listening ? 'available' : 'idle') }, listening ? '网关监听中' : '网关未启用'),
+        h('span', { className: 'dsc-key-state ' + (listening ? 'available' : 'idle') }, (data && data.native || {}).running ? '原生网关监听中' : listening ? 'XD 网关监听中' : '网关未启用'),
         onOpen ? h('button', { type: 'button', className: 'dsc-mini', onClick: onOpen }, '去模型模块配置') : null)
     }
 
@@ -2161,6 +2162,9 @@ window.__ModuleLoader__.load({
       const [gatewayMsg, setGatewayMsg] = React.useState('')
       const [freeGateway, setFreeGateway] = React.useState(null)
       const [freeGatewayMsg, setFreeGatewayMsg] = React.useState('')
+      const [nativeGateway, setNativeGateway] = React.useState(null)
+      const [nativeGatewayMsg, setNativeGatewayMsg] = React.useState('')
+      const loadNativeGateway = React.useCallback(() => fetch('/dsh-console/api/workbuddy/gateway').then((r) => r.json()).then((data) => setNativeGateway(data || null)).catch(() => setNativeGateway(null)), [])
       const refreshWorkbuddy = React.useCallback(() => Promise.all([
         fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
         fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
@@ -2187,13 +2191,15 @@ window.__ModuleLoader__.load({
         loadGateway()
         const loadFreeGateway = () => fetch('/dsh-console/api/free-gateway').then((r) => r.json()).then((data) => setFreeGateway(data || null)).catch(() => setFreeGateway(null))
         loadFreeGateway()
+        loadNativeGateway()
         const timer = setInterval(loadProgress, 5000)
         const logTimer = setInterval(loadLogs, 10000)
         const healthTimer = setInterval(loadHealth, 15000)
         const wbTimer = setInterval(loadWorkbuddy, 30000)
         const gwTimer = setInterval(loadGateway, 15000)
         const fgTimer = setInterval(loadFreeGateway, 15000)
-        return () => { clearInterval(evalTimer); clearInterval(timer); clearInterval(logTimer); clearInterval(healthTimer); clearInterval(wbTimer); clearInterval(gwTimer); clearInterval(fgTimer) }
+        const ngTimer = setInterval(loadNativeGateway, 15000)
+        return () => { clearInterval(evalTimer); clearInterval(timer); clearInterval(logTimer); clearInterval(healthTimer); clearInterval(wbTimer); clearInterval(gwTimer); clearInterval(fgTimer); clearInterval(ngTimer) }
       }, [])
       const loadCommander = React.useCallback(() => {
         fetch('/dsh-console/api/commander')
@@ -2437,28 +2443,31 @@ window.__ModuleLoader__.load({
             ...xdModels.slice(0, 8).map((m) => h('span', { key: 'wb-' + (m.id || m.name || m), className: 'dsc-chip' }, String((m && (m.name || m.id)) || m).slice(0, 18))),
             xdModels.length > 8 ? h('span', { className: 'dsc-hint' }, `+${xdModels.length - 8}`) : null),
           h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
-            h('span', { className: 'dsc-key-state ' + (gateway && gateway.listening ? 'available' : 'idle') }, gateway && gateway.listening ? '网关监听中' : '网关未启用'),
-            h('input', { className: 'dsc-input', value: gatewayPort, onChange: (e) => setGatewayPort(e.target.value), placeholder: '端口', style: { width: '82px' } }),
+            h('span', { className: 'dsc-key-state ' + (nativeGateway && nativeGateway.running ? 'available' : 'idle') }, nativeGateway && nativeGateway.running ? '原生网关监听中' : '原生网关未启用'),
+            h('span', { className: 'dsc-hint' }, nativeGateway && nativeGateway.endpoint ? nativeGateway.endpoint : 'http://127.0.0.1:8330/v1'),
             h('button', {
-              type: 'button', className: 'dsc-mini',
+              type: 'button', className: 'dsc-btn' + (nativeGateway && nativeGateway.running ? '' : ' primary'),
               onClick: async () => {
-                setGatewayMsg(gateway && gateway.enabled ? '停用中…' : '启用中…')
+                setNativeGatewayMsg(nativeGateway && nativeGateway.running ? '停止中…' : '启动中…')
                 try {
-                  const r = await fetch('/plugins/dsh-xdpool/relay', {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify(gateway && gateway.enabled ? { enabled: false } : { enabled: true, host: '127.0.0.1', port: Number(gatewayPort) || 8327 }),
+                  const r = await fetch('/dsh-console/api/workbuddy/gateway', {
+                    method: 'POST', headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ action: nativeGateway && nativeGateway.running ? 'stop' : 'start' }),
                   })
                   const next = await r.json()
-                  if (!r.ok) throw new Error(next.error || 'HTTP ' + r.status)
-                  setGateway(next)
-                  setGatewayMsg(next.listening ? '网关已启用' : '已启用但未监听')
-                } catch (e) { setGatewayMsg('操作失败：' + String((e && e.message) || e)) }
+                  if (!r.ok || next.ok === false) throw new Error(next.message || 'HTTP ' + r.status)
+                  setNativeGateway(next)
+                  setNativeGatewayMsg(next.running ? '原生网关已启动' : '原生网关已停止')
+                  loadNativeGateway()
+                } catch (e) { setNativeGatewayMsg('操作失败：' + String((e && e.message) || e)) }
               },
-            }, gateway && gateway.enabled ? '停用网关' : '启用网关'),
+            }, nativeGateway && nativeGateway.running ? '停止原生网关' : '启动原生网关'),
             h('button', { type: 'button', className: 'dsc-mini', onClick: () => refreshWorkbuddy() }, '刷新模型'),
-            gatewayMsg ? h('span', { className: 'dsc-hint' }, gatewayMsg) : null),
-          h('div', { className: 'dsc-hint', style: { marginTop: '4px' } }, 'WorkBuddy 模型通过 XD Pool 本地网关暴露，控制放在模型模块；网关未启用时只能看清单。'),
+            h('button', { type: 'button', className: 'dsc-mini', onClick: () => loadNativeGateway() }, '刷新网关'),
+            nativeGateway && nativeGateway.endpoint ? h('button', { type: 'button', className: 'dsc-mini', onClick: () => { try { navigator.clipboard.writeText(nativeGateway.endpoint) } catch { /* ignore */ } } }, '复制 Endpoint') : null,
+            nativeGateway && nativeGateway.key ? h('button', { type: 'button', className: 'dsc-mini', onClick: () => { try { navigator.clipboard.writeText(nativeGateway.key) } catch { /* ignore */ } } }, '复制 Key') : null,
+            nativeGatewayMsg ? h('span', { className: 'dsc-hint' }, nativeGatewayMsg) : null),
+          h('div', { className: 'dsc-hint', style: { marginTop: '4px' } }, '原生网关 8330 直接转发 WorkBuddy；XD Pool 聚合网关仍在上一张卡，76 家渠道走那边。'),
           h('div', { className: 'dsc-hint', style: { marginTop: '12px', fontWeight: 600 } }, `模型评测（${evalRows.length}）`),
           h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
             h('input', { className: 'dsc-input', value: evalq, placeholder: '按模型 / 供应商 / 密钥筛选', onChange: (e) => setEvalq(e.target.value), style: { flex: '1', minWidth: '220px' } }),

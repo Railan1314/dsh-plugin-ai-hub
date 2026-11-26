@@ -4071,6 +4071,58 @@ function createConsole(ctx) {
       return
     }
 
+    if (req.method === 'GET' && (route === 'api/workbuddy/gateway' || route === 'workbuddy/gateway')) {
+      const pidFile = join(root, 'tools', 'workbuddy_gateway.pid')
+      const keyFile = join(root, 'tools', 'workbuddy_gateway_key.txt')
+      let pid = 0
+      try { pid = Number(readFileSync(pidFile, 'utf8').trim()) || 0 } catch { pid = 0 }
+      let health = null
+      try { health = await (await fetch('http://127.0.0.1:8330/health', { signal: AbortSignal.timeout(1500) })).json() } catch { health = null }
+      sendJson(res, 200, {
+        ok: true,
+        source: 'native',
+        running: Boolean(health && health.ok),
+        pid: pid || (health && health.pid) || 0,
+        endpoint: 'http://127.0.0.1:8330/v1',
+        key: existsSync(keyFile) ? readFileSync(keyFile, 'utf8').trim() : '',
+        health,
+      })
+      return
+    }
+
+    if (req.method === 'POST' && (route === 'api/workbuddy/gateway' || route === 'workbuddy/gateway')) {
+      try {
+        const payload = await readBody(req)
+        const action = String(payload.action || 'status')
+        const pidFile = join(root, 'tools', 'workbuddy_gateway.pid')
+        if (action === 'stop') {
+          let pid = 0
+          try { pid = Number(readFileSync(pidFile, 'utf8').trim()) || 0 } catch { pid = 0 }
+          if (pid) spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {})
+          try { unlinkSync(pidFile) } catch { /* ignore */ }
+          sendJson(res, 200, { ok: true, running: false })
+          return
+        }
+        let health = null
+        try { health = await (await fetch('http://127.0.0.1:8330/health', { signal: AbortSignal.timeout(1500) })).json() } catch { health = null }
+        if (health && health.ok) {
+          sendJson(res, 200, { ok: true, running: true, endpoint: health.endpoint || 'http://127.0.0.1:8330/v1', health })
+          return
+        }
+        const child = spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'workbuddy_gateway.py'), '--port', '8330'], {
+          cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+        })
+        child.unref()
+        writeFileSync(pidFile, String(child.pid))
+        await new Promise((resolve) => setTimeout(resolve, 1800))
+        try { health = await (await fetch('http://127.0.0.1:8330/health', { signal: AbortSignal.timeout(2500) })).json() } catch { health = null }
+        sendJson(res, 200, { ok: Boolean(health && health.ok), running: Boolean(health && health.ok), pid: child.pid, endpoint: 'http://127.0.0.1:8330/v1', health })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+
     if (req.method === 'GET' && (route === 'api/xdpool' || route === 'xdpool')) {
       try {
         const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
