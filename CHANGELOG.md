@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.9.0
+
+- 新增「会话雷达」：主页按工作区分组展示运行中/最近会话，含状态、轮次、ctx%、最后活跃；支持投递和打断，不显示对话内容
+- 总指挥切换 DeepSeek V4 Pro，只做拆解与验收；新增独立 Pro 限流、Provider fallback 日志和可执行验收校验
+- 新增 quota_type（daily/decay/paid）调度排序，AMD 按 /v1/usage 剩余额度选 key，paid job 标记
+- 新增 WorkBuddy 原生账号/积分读取、XD Pool 网关控制和单 key 统一免费入口原型
+- 免费模型评测支持 provider/keyName、latency_ms、tokens 和单次延时/token 探测
+- 情报雷达新增 B站搜索、小米社区热议、热门榜和多源均衡
+- 修复 DeepSeek 官方 `deepseek-flash` 显示为 V4f 的缩写问题
+
+## 2.8.1
+
+- 隐藏后台 PowerShell/Python 子进程窗口，减少偶发弹窗
+
 ## 2.8.0
 
 - 统一进度/队列/日志/总指挥 API 与页面

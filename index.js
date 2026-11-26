@@ -561,10 +561,50 @@ function createConsole(ctx) {
         const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
         const plan = readJson(join(root, 'tools', 'ai_plan.json'), {})
         const quotas = plan.quotas || {}
-        const accounts = Object.keys(cfg.amd_api_keys || {}).length
+        const amdKeys = Object.keys(cfg.amd_api_keys || {})
+        const extraNames = Object.keys(cfg.extra_api_keys || {})
+        const opencodeNames = extraNames.filter((k) => /opencode|OPENCODE/i.test(k)).slice(0, 4)
+        const otherExtra = extraNames.filter((k) => !/opencode|OPENCODE/i.test(k))
+        const names = [...amdKeys, ...otherExtra, ...opencodeNames]
+        const accounts = names.length
         const models = (cfg.models || []).length
-        const poolMax = accounts * models * 4
-        const theory = Number(plan.theoretical_max) || poolMax
+        const perCombo = 4
+        const poolMax = accounts * models * perCombo
+        // The old plan file was generated with 7 accounts and is stale; the
+        // live matrix (13 AMD + 4 active OpenCode bridges) is authoritative.
+        const theory = poolMax
+        const keyStatus = (() => {
+          const overrides = readJson(join(root, 'tools', 'free_key_status.json'), {})
+          const cooling = readJson(join(root, 'tools', 'model_cooldown.json'), {})
+          const now = Date.now()
+          const retryAfter = Math.max(0, ...Object.values(cooling || {}).map((v) => Number(v) * 1000 - now), 0)
+          const next = new Date()
+          next.setHours(24, 0, 0, 0)
+          const resetAt = next.getTime()
+          const resetText = '次日 00:00'
+          const out = {}
+          for (const name of names) {
+            const rawLabel = /^AMD/i.test(name) ? `amd${amdKeys.indexOf(name) + 1}` : (() => {
+              const idx = opencodeNames.indexOf(name)
+              return idx >= 0 ? `opencode${idx + 1}` : ''
+            })()
+            const override = overrides[name] || (rawLabel ? overrides[rawLabel] : null)
+            if (override && typeof override === 'object') {
+              out[name] = { state: override.state || 'available', resetAt: override.resetAt || resetAt, resetText: override.resetText || resetText, retryAfter: Number(override.retryAfter) || 0 }
+              continue
+            }
+            if (/opencode|OPENCODE/i.test(name)) {
+              out[name] = retryAfter > 0
+                ? { state: 'limited', retryAfter: Math.ceil(retryAfter / 1000), resetAt: 0, resetText: '' }
+                : { state: 'available', retryAfter: 0, resetAt: 0, resetText: '' }
+            } else if (/^AMD/i.test(name)) {
+              out[name] = { state: 'available', retryAfter: 0, resetAt, resetText }
+            } else {
+              out[name] = { state: 'available', retryAfter: 0, resetAt: 0, resetText: '' }
+            }
+          }
+          return out
+        })()
         // 并行审计会写 _relay\par\live.json；用它显示实际在跑的 worker 数，而不是固定 1。
         const parLive = readJson(join(freeRelayDir(), 'par', 'live.json'), {})
         const liveFresh = parLive && Date.now() / 1000 - (Number(parLive.updated) || 0) < 120
@@ -598,7 +638,6 @@ function createConsole(ctx) {
           { id: 'ai', label: 'AI 分析', actual: actual.ai, max: Number(quotas.flex) || 0 },
           { id: 'flex', label: '扩展/其他', actual: actual.flex, max: Number(quotas.flex) || 0 },
         ]
-        const names = [...Object.keys(cfg.amd_api_keys || {}), ...Object.keys(cfg.extra_api_keys || {})]
         const providers = Array.isArray(cfg.amd_providers) ? cfg.amd_providers : []
         const artKeys = Object.keys(cfg.art_ai_keys || {})
         const mapKeys = Object.keys(cfg.map_ai_keys || {})
@@ -628,7 +667,7 @@ function createConsole(ctx) {
           if ((mapFlowNow.state === 'running' || mapFlowNow.state === 'waiting') && Array.isArray(mapFlowNow.key_names) && mapFlowNow.key_names.includes(k)) {
             if (!tasks.includes('地图')) tasks.push('地图')
           }
-          return { key: k, label, provider: vendor, tasks }
+          return { key: k, label, provider: vendor, tasks, ...(keyStatus[k] || {}) }
         })
 
         const shortModel = (id) => {
@@ -709,8 +748,8 @@ function createConsole(ctx) {
           }
           if (used === 0) addCell(names[names.length - 1], '扩展/其他', actual.flex)
         }
-        const extraNames = Object.keys(cfg.extra_api_keys || {})
-        const matrixModels = [...new Set([...modelIds, ...(extraNames.length ? ['DeepSeek-V4.1'] : [])])]
+        const extraMatrixNames = Object.keys(cfg.extra_api_keys || {})
+        const matrixModels = [...new Set([...modelIds, ...(extraMatrixNames.length ? ['DeepSeek-V4.1'] : [])])]
         const providerGroups = []
         for (const a of accountsDetail) {
           let group = providerGroups.find((x) => x.name === a.provider)
@@ -729,6 +768,8 @@ function createConsole(ctx) {
           aiWorkers: actual.ai,
           models,
           accounts,
+          amdAccounts: amdKeys.length,
+          opencodeAccounts: opencodeNames.length,
           poolMax,
           theory,
           actualTotal: items.reduce((a, b) => a + b.actual, 0),
@@ -737,7 +778,7 @@ function createConsole(ctx) {
           items,
           pipelineWorkers,
           parallelActive,
-          matrix: { models: matrixModels, providers: providerGroups, keys: accountsDetail.map((a) => ({ id: a.label, label: a.label, provider: a.provider, tasks: a.tasks })), cells },
+          matrix: { models: matrixModels, providers: providerGroups, keys: accountsDetail.map((a) => ({ id: a.label, label: a.label, provider: a.provider, tasks: a.tasks, state: a.state, resetAt: a.resetAt, retryAfter: a.retryAfter, resetText: a.resetText })), cells },
           live: state.dshCount,
           liveByProfile: state.dshByProfile,
           accountsDetail,
@@ -830,6 +871,7 @@ function createConsole(ctx) {
         const candidates = cur && Array.isArray(cur.providers) && cur.providers.length ? cur : (bak || cur)
         return {
           candidates,
+          sources: (candidates && Array.isArray(candidates.sources)) ? candidates.sources : [],
           codePlan: readJson(join(process.env.USERPROFILE || 'C:\\Users\\Railan', 'Desktop', '任务', '代码', '02_修改', '_relay', '调度分类.json'), null),
         }
       })(),
@@ -1079,8 +1121,19 @@ function createConsole(ctx) {
     const group = readJson(groupJsonPath, {})
     const list = Array.isArray(pids) ? pids : []
     const logFile = newestBotLog()
+    const logs = logFile ? tailLines(logFile, 30) : []
+    let logAgeSeconds = null
+    if (logFile) {
+      try {
+        logAgeSeconds = Math.max(0, Math.round((Date.now() - statSync(logFile).mtimeMs) / 1000))
+      } catch {
+        logAgeSeconds = null
+      }
+    }
     return {
       running: list.length > 0,
+      ready: logs.some((line) => /Bot ready/i.test(line)),
+      logAgeSeconds,
       pids: list,
       auto: Boolean(settings.botAuto),
       suppressed: state.botSuppressed,
@@ -1108,8 +1161,6 @@ function createConsole(ctx) {
       logFile,
     }
   }
-
-  /* ---------- 地图任务（TMX 体检） ---------- */
 
   const artDir = (() => {
     const moved = join(root, '..', '任务', '贴图', '贴图项目')
@@ -1651,10 +1702,13 @@ function createConsole(ctx) {
       const stamp = `${today().replace(/-/g, '')}-${clock().replace(/:/g, '')}`
       const logFile = join(botLogDir, `bot-${stamp}.log`)
       const fd = openSync(logFile, 'a')
+      // Windows env keys are case-insensitive, but some .NET/Node children reject
+      // duplicate lowercase and uppercase proxy keys. Keep uppercase, drop lowercase.
+      const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['http_proxy', 'https_proxy', 'no_proxy', 'all_proxy'].includes(key)))
       const child = spawn('cmd.exe', ['/c', DSH_CMD, '--profile', 'qqbot'], {
         cwd: BOT_ROOT,
         windowsHide: true,
-        env: { ...process.env, QQBOT_BIND_OPEN_BROWSER: '0', DSH_PERMISSION_MODE: 'danger-full-access', ...amdEnv() },
+        env: { ...cleanEnv, QQBOT_BIND_OPEN_BROWSER: '0', DSH_PERMISSION_MODE: 'danger-full-access', ...amdEnv() },
         stdio: ['ignore', fd, fd],
       })
       state.botChild = child
@@ -1913,7 +1967,7 @@ function createConsole(ctx) {
     let registered
     let probe = null
     try {
-      const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'provider_probe.py'), '--base-url', String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')), '--key', key, '--model', String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))], { cwd: root, encoding: 'utf8', timeout: 90000 })
+      const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'provider_probe.py'), '--base-url', String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : '')), '--key', key, '--model', String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))], { cwd: root, encoding: 'utf8', timeout: 90000, windowsHide: true })
       probe = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
     } catch (error) {
       probe = { ok: false, mode: 'direct', reason: String((error && error.message) || error).slice(0, 200) }
@@ -1935,14 +1989,14 @@ function createConsole(ctx) {
         const iqBase = probe && probe.mode === 'bridge' ? 'http://127.0.0.1:8799/v1' : String(baseUrl || (String(vendor).toLowerCase() === 'opencode' ? 'https://opencode.ai/inference/openai/v1' : ''))
         const iqModel = String(model || (String(vendor).toLowerCase() === 'opencode' ? 'deepseek-v4.1-flash-free' : ''))
         if (iqBase && iqModel) {
-          const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'iq_probe.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor], { cwd: root, encoding: 'utf8', timeout: 300000 })
+          const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'iq_probe.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor], { cwd: root, encoding: 'utf8', timeout: 300000, windowsHide: true })
           iq = JSON.parse(String(out || '{}').trim().split(/\r?\n/).pop())
           const latest = readJson(cfgPath, {})
           latest.model_iq = latest.model_iq || {}
           latest.model_iq[name] = { score: iq.score, model: iqModel, provider: vendor, at: nowText() }
           writeJson(cfgPath, latest)
           try {
-            const evalArgs = ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor]
+            const evalArgs = ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', iqBase, '--model', iqModel, '--key', probe && probe.mode === 'bridge' ? 'bridge' : key, '--provider-name', vendor, '--key-name', String(name || '')]
             const evalProc = spawn(settings.python || 'python', evalArgs, { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
             evalProc.unref()
           } catch {
@@ -2143,6 +2197,9 @@ function createConsole(ctx) {
       meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
     }
     if (payload.model) job.meta.model = String(payload.model)
+    if (payload.quotaType) job.meta.quotaType = String(payload.quotaType)
+    if (payload.paid === true || payload.quotaType === 'paid') job.meta.paid = true
+    if (payload.keyName) job.meta.keyName = String(payload.keyName)
     if (payload.account) job.meta.account = String(payload.account)
     data.jobs[id] = job
     if (type === 'opencode' || type === 'subagent') {
@@ -2320,11 +2377,28 @@ function createConsole(ctx) {
       startBalanceTask()
     }
 
-    // 大肥鱼：掉线自动拉起
+    // 大肥鱼：掉线自动拉起；进程在但超过 2 分钟没写 Bot ready 也重拉
     if (settings.botAuto && !state.botSuppressed) {
       listBotProcesses()
         .then((pids) => {
-          if (pids.length === 0) startBot('auto')
+          if (pids.length === 0) {
+            state.botNotReady = 0
+            startBot('auto')
+            return
+          }
+          const snap = botSnapshot(pids)
+          const stale = snap.logAgeSeconds === null || snap.logAgeSeconds > 120
+          if (!snap.ready && stale) {
+            state.botNotReady = Number(state.botNotReady || 0) + 1
+            if (state.botNotReady >= 2) {
+              state.botNotReady = 0
+              state.botEvent = '检测到假在线（无 Bot ready），自动重启'
+              log(state.botEvent)
+              stopBot().then(() => startBot('auto')).catch(() => {})
+            }
+          } else {
+            state.botNotReady = 0
+          }
         })
         .catch(() => {})
     }
@@ -3780,12 +3854,56 @@ function createConsole(ctx) {
         return
       }
       try {
-        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'local_search.py'), q, '--limit', String(Number(url.searchParams.get('limit')) || 12)], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'local_search.py'), q, '--limit', String(Number(url.searchParams.get('limit')) || 12)], { cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true })
         const raw = String(out || '').trim()
         const start = raw.indexOf('{')
         sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
       } catch (error) {
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/radar' || route === 'radar')) {
+      const q = String(url.searchParams.get('q') || url.searchParams.get('query') || '白嫖 AI 插件 Agent').trim().slice(0, 200)
+      const limit = Math.min(60, Math.max(4, Number(url.searchParams.get('limit')) || 24))
+      const args = ['-X', 'utf8', join(root, 'tools', 'community_radar.py'), q, '--limit', String(limit)]
+      if (url.searchParams.get('refresh') === '1') args.push('--refresh')
+      if (url.searchParams.get('hot') === '1') args.push('--hot')
+      try {
+        const out = execFileSync(settings.python || 'python', args, { cwd: root, encoding: 'utf8', timeout: 120000, windowsHide: true })
+        const raw = String(out || '').trim()
+        const start = raw.indexOf('{')
+        sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, items: [], sources: [], message: String((error && error.message) || error).slice(0, 500) })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/radar/import' || route === 'radar/import')) {
+      try {
+        const payload = await readBody(req)
+        const url = String(payload.url || '').trim()
+        if (!/^https?:\/\//i.test(url)) {
+          sendJson(res, 400, { ok: false, message: '需要有效的 http(s) URL' })
+          return
+        }
+        const file = join(root, 'tools', 'free_pool_candidates.json')
+        const data = readJson(file, { sources: [], providers: [] })
+        data.sources = Array.isArray(data.sources) ? data.sources : []
+        if (!data.sources.some((x) => x && x.url === url)) {
+          data.sources.push({
+            repo: String(payload.title || url).slice(0, 240),
+            url,
+            chars: 0,
+            via: 'radar',
+            source: String(payload.source || ''),
+            imported_at: nowText(),
+          })
+          writeJson(file, data)
+        }
+        sendJson(res, 200, { ok: true, sources: data.sources.length })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
       }
       return
     }
@@ -3796,7 +3914,7 @@ function createConsole(ctx) {
         return
       }
       try {
-        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_router.py'), role], { cwd: root, encoding: 'utf8', timeout: 15000 })
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_router.py'), role], { cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true })
         const raw = String(out || '').trim()
         sendJson(res, 200, JSON.parse(raw.slice(raw.indexOf('{'))))
       } catch (error) {
@@ -3835,11 +3953,29 @@ function createConsole(ctx) {
         }
         const baseUrl = String(payload.baseUrl || 'http://127.0.0.1:8799/v1')
         const key = String(payload.key || 'bridge')
-        const proc = spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', baseUrl, '--model', model, '--key', key, '--provider-name', String(payload.provider || '')], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
+        const proc = spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_eval_extended.py'), '--base-url', baseUrl, '--model', model, '--key', key, '--provider-name', String(payload.provider || ''), '--key-name', String(payload.keyName || '')], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true })
         proc.unref()
         sendJson(res, 200, { ok: true, pid: proc.pid, model, note: '评测在后台运行，完成后查 /api/model-eval' })
       } catch (error) {
         sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/model-eval/probe' || route === 'model-eval/probe')) {
+      try {
+        const payload = await readBody(req)
+        const model = String(payload.model || '').trim()
+        if (!model || model.length > 160) {
+          sendJson(res, 400, { ok: false, message: '需要 model' })
+          return
+        }
+        const baseUrl = String(payload.baseUrl || 'http://127.0.0.1:8799/v1')
+        const key = String(payload.key || 'bridge')
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'model_latency_probe.py'), '--base-url', baseUrl, '--model', model, '--key', key, '--timeout', '60'], { cwd: root, encoding: 'utf8', timeout: 90000, windowsHide: true })
+        const raw = String(out || '').trim()
+        sendJson(res, 200, JSON.parse(raw.slice(raw.indexOf('{'))))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 500) })
       }
       return
     }
@@ -3873,6 +4009,65 @@ function createConsole(ctx) {
         return [m.source, m.provider, m.model, m.quota, m.card_required, m.status].join(' ').toLowerCase().includes(q)
       })
       sendJson(res, 200, { ok: true, updated: reg.updated || '', total: rows.length, models: rows.slice(0, 200) })
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/free-gateway' || route === 'free-gateway')) {
+      const pidFile = join(root, 'tools', 'free_gateway.pid')
+      let pid = 0
+      try { pid = Number(readFileSync(pidFile, 'utf8').trim()) || 0 } catch { pid = 0 }
+      let running = false
+      if (pid) {
+        try { process.kill(pid, 0); running = true } catch { running = false }
+      }
+      sendJson(res, 200, { ok: true, running, pid: running ? pid : 0, endpoint: 'http://127.0.0.1:8810/v1', key: 'free-pool', service: 'free-gateway' })
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/free-gateway' || route === 'free-gateway')) {
+      try {
+        const payload = await readBody(req)
+        const action = String(payload.action || 'start')
+        const pidFile = join(root, 'tools', 'free_gateway.pid')
+        if (action === 'stop') {
+          let pid = 0
+          try { pid = Number(readFileSync(pidFile, 'utf8').trim()) || 0 } catch { pid = 0 }
+          if (pid) {
+            try { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 8000 }) } catch { /* already gone */ }
+          }
+          try { unlinkSync(pidFile) } catch { /* ignore */ }
+          sendJson(res, 200, { ok: true, running: false, endpoint: 'http://127.0.0.1:8810/v1', key: 'free-pool' })
+          return
+        }
+        let existing = 0
+        try { existing = Number(readFileSync(pidFile, 'utf8').trim()) || 0 } catch { existing = 0 }
+        if (existing) {
+          try { process.kill(existing, 0); sendJson(res, 200, { ok: true, running: true, pid: existing, endpoint: 'http://127.0.0.1:8810/v1', key: 'free-pool' }); return } catch { /* stale */ }
+        }
+        const origin = ctx.webServer && typeof ctx.webServer.getOrigin === 'function' ? ctx.webServer.getOrigin() : ''
+        const proc = spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'free_gateway.py'), '--port', '8810', '--key', 'free-pool'], {
+          cwd: root,
+          windowsHide: true,
+          stdio: 'ignore',
+          detached: true,
+          env: { ...process.env, ...(origin ? { XD_RELAY_URL: origin + '/plugins/dsh-xdpool/relay' } : {}) },
+        })
+        proc.unref()
+        writeFileSync(pidFile, String(proc.pid))
+        sendJson(res, 200, { ok: true, running: true, pid: proc.pid, endpoint: 'http://127.0.0.1:8810/v1', key: 'free-pool' })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && (route === 'api/workbuddy' || route === 'workbuddy')) {
+      try {
+        const raw = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'workbuddy_native.py')], { cwd: root, encoding: 'utf8', timeout: 45000, windowsHide: true })
+        const text = String(raw || '').trim()
+        sendJson(res, 200, JSON.parse(text.slice(text.indexOf('{'))))
+      } catch (error) {
+        sendJson(res, 200, { ok: false, source: 'native', error: String((error && error.message) || error).slice(0, 400) })
+      }
       return
     }
 
@@ -3998,13 +4193,15 @@ function createConsole(ctx) {
       try {
         const payload = await readBody(req)
         const id = String(payload.jobId || payload.id || '')
-        const state = String(payload.state || 'succeeded')
+        const requested = String(payload.state || 'succeeded')
+        const retry = requested === 'retry'
+        const state = retry ? 'failed' : requested
         const job = await finishJob(id, ['succeeded', 'failed', 'cancelled', 'stale'].includes(state) ? state : 'succeeded', {
           resultRef: payload.resultRef ? String(payload.resultRef) : null,
           result: payload.result ? String(payload.result).slice(0, 8000) : null,
-          error: payload.error ? String(payload.error).slice(0, 4000) : null,
+          error: payload.error ? String(payload.error).slice(0, 4000) : (retry ? 'retry requested' : null),
         })
-        sendJson(res, job ? 200 : 404, { ok: Boolean(job), job: job ? jobPublic(job) : null })
+        sendJson(res, job ? 200 : 404, { ok: Boolean(job), retry, job: job ? jobPublic(job) : null })
       } catch (error) {
         sendJson(res, 400, { ok: false, message: String((error && error.message) || error) })
       }
@@ -4086,6 +4283,35 @@ function createConsole(ctx) {
         sendJson(res, 200, await perform(payload))
       } catch (error) {
         sendJson(res, 400, { ok: false, message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && (route === 'api/session/interrupt' || route === 'session/interrupt')) {
+      try {
+        const payload = await readBody(req)
+        const sessionId = String((payload && payload.sessionId) || '').trim()
+        if (!sessionId) {
+          sendJson(res, 400, { ok: false, message: '缺少 sessionId' })
+          return
+        }
+        const live = ctx.agents && typeof ctx.agents.get === 'function' ? ctx.agents.get(sessionId) : null
+        if (!live) {
+          sendJson(res, 404, { ok: false, message: '会话当前不在内存中，无法打断' })
+          return
+        }
+        const targets = [live, live.session, live.agent].filter(Boolean)
+        for (const target of targets) {
+          for (const method of ['interrupt', 'abort', 'cancel', 'stop']) {
+            if (typeof target[method] === 'function') {
+              await target[method]()
+              sendJson(res, 200, { ok: true, sessionId, method })
+              return
+            }
+          }
+        }
+        sendJson(res, 409, { ok: false, message: '当前 DSH 会话对象没有暴露 interrupt/abort/cancel/stop 方法' })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, message: String((error && error.message) || error).slice(0, 400) })
       }
       return
     }
@@ -4576,7 +4802,7 @@ export function apply(ctx) {
         if (parameterName) argv.push(String(args[parameterName] || ''))
         else argv.push('test')
         try {
-          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 })
+          return execFileSync('python', argv, { cwd: base, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024, windowsHide: true })
         } catch (error) {
           return `SOURCE_ERROR: ${String((error && error.stderr) || (error && error.message) || error).slice(0, 4000)}`
         }

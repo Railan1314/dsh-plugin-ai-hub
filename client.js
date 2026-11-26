@@ -33,6 +33,7 @@ window.__ModuleLoader__.load({
       const s = String(m || '')
       const low = s.toLowerCase()
       if (/v4\.1/.test(low)) return 'V4.1f'
+      if (low === 'deepseek-flash') return 'V4.1f'
       if (/deepseek.*flash/.test(low)) return 'V4f'
       if (/deepseek.*pro/.test(low)) return 'V4p'
       if (/v4/.test(low)) return /pro/.test(low) ? 'V4p' : 'V4f'
@@ -501,15 +502,17 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.dsc-root{box-sizing:border-box;height:100%;overflow-y:auto;color:var(--dsw-alias-label-primary)}
-.dsc-inner{max-width:1020px;margin:0 auto;padding:calc(var(--dsh-frame-top-clearance,0px) + 18px) 28px 44px;display:flex;flex-direction:column;gap:16px}
-.dsc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.dsc-title{display:flex;gap:12px;align-items:center;min-width:0}
-.dsc-logo{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-brand-primary);flex:none}
-.dsc-h1{font-size:17px;font-weight:600;margin:0;line-height:1.3;letter-spacing:.2px}
-.dsc-sub{font-size:12px;color:var(--dsw-alias-label-secondary);margin:3px 0 0;line-height:1.4}
-.dsc-headright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.dsc-pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);white-space:nowrap}
+.dsc-root{box-sizing:border-box;height:100%;overflow-y:auto;overflow-x:hidden;color:var(--dsw-alias-label-primary)}
+.dsc-inner{width:100%;box-sizing:border-box;max-width:none;margin:0;padding:calc(var(--dsh-frame-top-clearance,0px) + 24px) 30px 52px;display:flex;flex-direction:column;gap:20px}
+.dsc-herobar{display:flex;flex-direction:column;gap:14px;padding:18px 20px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 9%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1) 46%,color-mix(in srgb,var(--dsw-alias-state-business-primary) 5%,var(--dsw-alias-bg-layer-2)));box-shadow:0 1px 2px rgba(0,0,0,.08);box-sizing:border-box;width:100%;min-width:0}
+.dsc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.dsc-title{display:flex;gap:13px;align-items:center;min-width:0}
+.dsc-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-brand-primary);flex:none}
+.dsc-h1{font-size:19px;font-weight:650;margin:0;line-height:1.25;letter-spacing:.2px}
+.dsc-sub{font-size:12.5px;color:var(--dsw-alias-label-secondary);margin:4px 0 0;line-height:1.45}
+.dsc-headright{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dsc-statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px}
+.dsc-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);white-space:nowrap}
 .dsc-dot{width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);flex:none}
 .dsc-pill.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
 .dsc-pill.on .dsc-dot{background:var(--dsw-alias-state-success-primary)}
@@ -517,12 +520,14 @@ window.__ModuleLoader__.load({
 .dsc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 14px;border-radius:9px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:13px;font-family:inherit;cursor:pointer;transition:background .12s ease,border-color .12s ease}
 .dsc-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
 .dsc-btn:disabled{opacity:.42;cursor:not-allowed}
-.dsc-btn.primary{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
+.dsc-btn.primary{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1))}
 .dsc-btn.danger{border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
-.dsc-tabs{display:inline-flex;gap:4px;padding:4px;border-radius:11px;background:var(--dsw-alias-bg-layer-2);align-self:flex-start}
-.dsc-tab{font-family:inherit;font-size:13px;padding:6px 16px;border-radius:8px;border:none;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
-.dsc-tab.is-on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.dsc-card{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:14px;padding:16px 18px}
+.dsc-tabs{display:flex;gap:4px;padding:10px 0 0;border-top:1px solid var(--dsw-alias-border-l1);align-self:stretch;overflow-x:auto;scrollbar-width:none;min-width:0}
+.dsc-tabs::-webkit-scrollbar{display:none}
+.dsc-tab{font-family:inherit;font-size:12.5px;padding:7px 15px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;white-space:nowrap;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsc-tab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}
+.dsc-tab.is-on{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,var(--dsw-alias-bg-layer-1));border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 40%,transparent);color:var(--dsw-alias-brand-primary);font-weight:600}
+.dsc-card{box-sizing:border-box;width:100%;min-width:0;background:linear-gradient(180deg,var(--dsw-alias-bg-layer-1),color-mix(in srgb,var(--dsw-alias-bg-layer-2) 38%,var(--dsw-alias-bg-layer-1)));border:1px solid var(--dsw-alias-border-l1);border-radius:18px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .dsc-hero{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .dsc-ring{flex:none;width:92px;height:92px}
 .dsc-ringtext{font-size:17px;font-weight:600;fill:var(--dsw-alias-label-primary)}
@@ -532,9 +537,9 @@ window.__ModuleLoader__.load({
 .dsc-herotop strong{font-size:14px;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}
 .dsc-bar{position:relative;height:8px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
 .dsc-bar i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--dsw-alias-brand-primary);transition:width .35s ease}
-.dsc-chips{display:flex;gap:8px;flex-wrap:wrap}
-.dsc-chip{font-size:11.5px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:7px;padding:4px 9px;white-space:nowrap}
-.dsc-chip.on{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,var(--dsw-alias-bg-layer-2));box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary)}
+.dsc-chips{display:flex;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%}
+.dsc-chip{font-size:11.5px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:7px;padding:4px 9px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.dsc-chip.on{color:var(--dsw-alias-brand-primary);background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,var(--dsw-alias-bg-layer-2)),var(--dsw-alias-bg-layer-2));box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary)}
 .dsc-chip b{color:var(--dsw-alias-label-primary);font-weight:600;font-variant-numeric:tabular-nums}
 .dsc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px}
 .dsc-metric{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:13px;padding:13px 15px;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -542,7 +547,7 @@ window.__ModuleLoader__.load({
 .dsc-metric-v{font-size:18px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsc-metric-v.is-compact{font-size:12.5px;font-weight:500;line-height:1.45;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
 .dsc-metric-h{font-size:11px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsc-sec-title{font-size:12.5px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dsc-sec-title{font-size:14px;font-weight:650;margin:0 0 13px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .dsc-sec-title small{font-weight:400;color:var(--dsw-alias-label-secondary);font-size:11.5px}
 .dsc-steps{display:flex;gap:8px;flex-wrap:wrap}
 .dsc-step{display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:6px 11px;border-radius:9px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);background:transparent}
@@ -589,6 +594,7 @@ window.__ModuleLoader__.load({
 .dsc-segbtn:disabled{opacity:.5;cursor:not-allowed}
 .dsc-note{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.55}
 .dsc-tasks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.dsc-empty{display:flex;align-items:center;justify-content:center;min-height:76px;border:1px dashed var(--dsw-alias-border-l1);border-radius:14px;color:var(--dsw-alias-label-secondary);font-size:12.5px;line-height:1.5;text-align:center;padding:14px 18px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 55%,transparent)}
 .dsc-task{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);font-family:inherit;color:inherit;text-align:left;width:100%;cursor:pointer}
 .dsc-task:hover{background:var(--dsw-alias-bg-layer-1)}
 .dsc-taskdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--dsw-alias-state-idle-primary)}
@@ -602,9 +608,9 @@ window.__ModuleLoader__.load({
 .dsc-mini:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
 .dsc-mini:disabled{opacity:.45;cursor:not-allowed}
 .dsc-table{width:100%;border-collapse:collapse;font-size:12px;display:block;max-height:360px;overflow-y:auto;overflow-x:auto}.dsc-table thead{position:sticky;top:0;background:var(--dsw-alias-bg-layer-2)}.dsc-table tbody tr:nth-child(even){background:var(--dsw-alias-bg-layer-2)}.dsc-table tbody tr:nth-child(-n+3){background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}.dsc-table td:first-child,.dsc-table th:first-child{width:36px;color:var(--dsw-alias-label-secondary)}.dsc-table tbody{counter-reset:row}.dsc-table tbody tr{counter-increment:row}.dsc-table tbody td:first-child::before{content:counter(row) ". ";color:var(--dsw-alias-label-secondary);font-size:11px}
-.dsc-table th,.dsc-table td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dsc-table th{color:var(--dsw-alias-label-secondary);font-weight:600}
-.dsc-table th:first-child,.dsc-table td:first-child{position:sticky;left:0;z-index:1;background:var(--dsw-alias-bg-layer-1)}
+.dsc-table th,.dsc-table td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsc-table th{color:var(--dsw-alias-label-secondary);font-weight:650;font-size:11.5px;letter-spacing:.02em}
+.dsc-table th:first-child,.dsc-table td:first-child{position:sticky;left:0;z-index:1;background:var(--dsw-alias-bg-layer-1);width:auto;min-width:112px;white-space:nowrap;color:var(--dsw-alias-label-primary)}
 .dsc-table thead th:first-child{z-index:3;background:var(--dsw-alias-bg-layer-2)}
 .dsc-table tbody tr:nth-child(even) td:first-child{background:var(--dsw-alias-bg-layer-2)}
 .dsc-state{display:inline-block;padding:1px 6px;border-radius:999px;font-size:11px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
@@ -626,9 +632,64 @@ window.__ModuleLoader__.load({
 .dsc-matrix tbody tr:nth-child(even),.dsc-matrix tbody tr:nth-child(-n+3){background:transparent}
 .dsc-matrix tbody tr:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsc-matrix .dsc-cell-busy{color:var(--dsw-alias-state-business-primary);font-weight:600}
+.dsc-key-state{display:inline-block;margin-left:6px;padding:0 5px;border-radius:999px;font-size:10px;line-height:15px;border:1px solid transparent;white-space:nowrap}
+.dsc-key-state.available{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 28%,transparent)}
+.dsc-key-state.used{color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-label-secondary) 12%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-label-secondary) 22%,transparent)}
+.dsc-key-state.limited{color:var(--dsw-alias-state-warning-primary);background:color-mix(in srgb,var(--dsw-alias-state-warning-primary) 14%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-state-warning-primary) 32%,transparent)}
 .dsc-flaglist{margin:8px 0 0;padding-left:18px;font-size:12px;line-height:1.7;color:var(--dsw-alias-label-primary)}
+.dsc-qualitybar{display:flex;align-items:center;gap:3px;margin-top:10px;font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0}
+.dsc-qualitybar i{height:6px;border-radius:999px;display:block}
+.dsc-qualitybar i.qa{background:linear-gradient(90deg,#35c98a,#57d6a2)}
+.dsc-qualitybar i.qb{background:linear-gradient(90deg,#d6a84a,#e7c36d)}
+.dsc-qualitybar i.qc{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 65%,transparent)}
+.dsc-qualitybar span{margin-left:6px;white-space:nowrap}
+.dsc-radar-search{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.dsc-radar-search .dsc-input{flex:1;min-width:240px}
+.dsc-radar-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.dsc-radar-item{padding:13px 15px;border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 72%,transparent),var(--dsw-alias-bg-layer-1));min-width:0}
+.dsc-radar-item:hover{border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 42%,var(--dsw-alias-border-l1))}
+.dsc-radar-top{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.dsc-radar-title{font-size:13.5px;font-weight:600;line-height:1.45;min-width:0;overflow-wrap:anywhere}
+.dsc-radar-title a{color:var(--dsw-alias-label-primary);text-decoration:none}
+.dsc-radar-title a:hover{color:var(--dsw-alias-brand-primary)}
+.dsc-radar-badge{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:10.5px;padding:3px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
+.dsc-radar-badge.bilibili{color:#fb7299;border-color:color-mix(in srgb,#fb7299 45%,transparent)}
+.dsc-radar-badge.hackernews{color:#ff9f43;border-color:color-mix(in srgb,#ff9f43 45%,transparent)}
+.dsc-radar-badge.xiaoheihe{color:#54d6a1;border-color:color-mix(in srgb,#54d6a1 45%,transparent)}
+.dsc-radar-badge.xiaomi{color:#ff6900;border-color:color-mix(in srgb,#ff6900 45%,transparent)}
+.dsc-radar-summary{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55;margin-top:5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dsc-radar-summary.is-open{display:block;overflow:visible;-webkit-line-clamp:unset}
+.dsc-radar-detail{display:flex;flex-direction:column;gap:3px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--dsw-alias-border-l1);font-size:11px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.dsc-radar-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:var(--dsw-alias-label-secondary)}
+.dsc-radar-meta b{font-weight:600;color:var(--dsw-alias-label-primary)}
+.dsc-radar-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.dsc-radar-tags span{font-size:10.5px;padding:2px 7px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.dsc-radar-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px}
 .dsc-textarea{width:100%;min-height:180px;font-family:Consolas,monospace;font-size:12px;line-height:1.5;padding:10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);resize:vertical;box-sizing:border-box}
 .dsc-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dsc-session-radar{display:flex;flex-direction:column;gap:10px}
+.dsc-session-group{border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px}
+.dsc-session-group:first-child{border-top:0;padding-top:0}
+.dsc-session-group-title{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;font-weight:650;color:var(--dsw-alias-label-secondary);padding:4px 2px}
+.dsc-session-group-title b{font-weight:600;color:var(--dsw-alias-label-primary)}
+.dsc-session-row{display:grid;grid-template-columns:12px minmax(140px,1fr) 58px 62px 78px;align-items:center;gap:9px;padding:7px 8px;border-radius:7px;cursor:pointer;transition:background .12s ease}
+.dsc-session-row:hover,.dsc-session-row.is-on{background:var(--dsw-alias-interactive-bg-hover)}
+.dsc-session-row.is-on{box-shadow:inset 2px 0 0 var(--dsw-alias-brand-primary)}
+.dsc-session-dot{width:8px;height:8px;border-radius:50%;display:block;background:var(--dsw-alias-label-secondary);opacity:.55}
+.dsc-session-dot.running{background:var(--dsw-alias-state-success-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 13%,transparent);opacity:1}
+.dsc-session-dot.failed{background:var(--dsw-alias-state-error-primary);opacity:1}
+.dsc-session-dot.idle{background:var(--dsw-alias-label-secondary)}
+.dsc-session-name{font-size:12.5px;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsc-session-meta{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dsc-session-ctx{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dsc-session-ctx.warn{color:var(--dsw-alias-state-warning-primary);font-weight:650}
+.dsc-session-time{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;text-align:right}
+.dsc-session-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
+.dsc-session-actions .dsc-input{min-width:180px;flex:1}
+.dsc-session-status{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.dsc-session-status .dsc-dot{width:7px;height:7px}
+@media (max-width:720px){.dsc-session-row{grid-template-columns:12px minmax(100px,1fr) 44px 52px 68px;gap:6px}.dsc-session-time{font-size:10px}}
+
 @media (max-width:880px){.dsc-logs{grid-template-columns:1fr}.dsc-row2{grid-template-columns:1fr}.dsc-inner{padding-left:18px;padding-right:18px}}
 `
 
@@ -1197,6 +1258,165 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function decodeSessionWorkspace(raw) {
+      let s = String(raw || '')
+      s = s.replace(/^--C-Users-Railan-Desktop-/, '').replace(/--$/, '')
+      s = s.replace(/~([0-9a-f]{4})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      return s.replace(/-/g, '\\')
+    }
+
+    function sessionGroupLabel(raw) {
+      const decoded = decodeSessionWorkspace(raw)
+      if (decoded.includes('ds工作区')) return 'ds工作区'
+      if (decoded.includes('任务') && decoded.includes('代码')) return '代码任务'
+      if (decoded.includes('任务') && decoded.includes('地图')) return '地图任务'
+      if (decoded.includes('任务') && decoded.includes('贴图')) return '贴图任务'
+      if (decoded.includes('任务') && decoded.includes('平衡')) return '平衡任务'
+      if (decoded.toLowerCase().includes('qqbot')) return '大肥鱼'
+      const tail = decoded.split('\\').filter(Boolean).slice(-1)[0]
+      return tail || decoded || '其他'
+    }
+
+    function sessionAgo(value) {
+      const ts = Date.parse(String(value || ''))
+      if (!Number.isFinite(ts)) return '—'
+      const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+      if (seconds < 60) return '刚刚'
+      if (seconds < 3600) return Math.floor(seconds / 60) + ' 分钟前'
+      if (seconds < 86400) return Math.floor(seconds / 3600) + ' 小时前'
+      return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    }
+
+    const SESSION_GROUPS = ['ds工作区', '代码任务', '地图任务', '贴图任务', '平衡任务', '大肥鱼', '其他']
+
+    function SessionRadar() {
+      const [sessions, setSessions] = React.useState([])
+      const [running, setRunning] = React.useState([])
+      const [selected, setSelected] = React.useState(null)
+      const [message, setMessage] = React.useState('')
+      const [notice, setNotice] = React.useState('')
+      const [busy, setBusy] = React.useState(false)
+      const load = React.useCallback(async () => {
+        try {
+          const [progress, data] = await Promise.all([
+            fetch('/dsh-console/api/progress').then((r) => r.json()).catch(() => ({})),
+            fetch('/dsh-console/api/sessions').then((r) => r.json()).catch(() => ({ sessions: [] })),
+          ])
+          const rows = Array.isArray((data || {}).sessions) ? data.sessions : []
+          const recentCutoff = Date.now() - 24 * 3600 * 1000
+          const visible = rows
+            .filter((s) => s && s.sessionId && (s.running || Date.parse(String(s.lastActive || '')) >= recentCutoff))
+            .sort((a, b) => (Number(b.running) - Number(a.running)) || (Date.parse(String(b.lastActive || '')) - Date.parse(String(a.lastActive || ''))))
+          setSessions(visible)
+          setRunning(((progress || {}).sessions || {}).running || [])
+          setSelected((old) => (old && visible.some((s) => s.sessionId === old.sessionId) ? old : null))
+        } catch (error) {
+          setSessions([])
+        }
+      }, [])
+      React.useEffect(() => {
+        load()
+        const timer = setInterval(load, 5000)
+        return () => clearInterval(timer)
+      }, [load])
+      const openSession = (session) => {
+        try {
+          window.open('/?session=' + encodeURIComponent(session.sessionId), '_blank', 'noopener,noreferrer')
+        } catch (error) {
+          setNotice('打开失败：' + String((error && error.message) || error))
+        }
+      }
+      const select = (session) => {
+        setSelected(session)
+        setNotice('')
+        setMessage('')
+        openSession(session)
+      }
+      const inject = async () => {
+        if (!selected || !message.trim()) return
+        setBusy(true)
+        setNotice('投递中…')
+        try {
+          const response = await fetch('/dsh-console/api/inject', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId: selected.sessionId, text: message.trim() }),
+          })
+          const data = await response.json().catch(() => ({}))
+          if (!response.ok || data.ok === false) throw new Error(data.message || data.error || 'HTTP ' + response.status)
+          setMessage('')
+          setNotice('已投递' + (data.resumed ? '（已恢复会话）' : ''))
+          load()
+        } catch (error) {
+          setNotice('投递失败：' + String((error && error.message) || error))
+        } finally {
+          setBusy(false)
+        }
+      }
+      const interrupt = async () => {
+        if (!selected) return
+        setBusy(true)
+        setNotice('打断中…')
+        try {
+          const response = await fetch('/dsh-console/api/session/interrupt', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId: selected.sessionId }),
+          })
+          const data = await response.json().catch(() => ({}))
+          if (!response.ok || data.ok === false) throw new Error(data.message || data.error || 'HTTP ' + response.status)
+          setNotice('已打断')
+          load()
+        } catch (error) {
+          setNotice('打断失败：' + String((error && error.message) || error))
+        } finally {
+          setBusy(false)
+        }
+      }
+      const grouped = {}
+      for (const session of sessions) {
+        const group = sessionGroupLabel(session.workspace)
+        ;(grouped[group] = grouped[group] || []).push(session)
+      }
+      const order = [...SESSION_GROUPS, ...Object.keys(grouped).filter((x) => !SESSION_GROUPS.includes(x))]
+      return h(
+        'section',
+        { className: 'dsc-card' },
+        h('h3', { className: 'dsc-sec-title' }, '会话雷达', h('small', null, `${running.length || sessions.filter((s) => s.running).length} 运行中 · ${sessions.length} 最近活跃`)),
+        h('div', { className: 'dsc-hint' }, '只列会话元信息，不显示对话内容。点一行在 DSH 新标签打开；选中后可投递或打断。'),
+        h('div', { className: 'dsc-session-radar', style: { marginTop: '8px' } },
+          sessions.length
+            ? order.filter((group) => grouped[group] && grouped[group].length).map((group) => h('div', { className: 'dsc-session-group', key: group },
+                h('div', { className: 'dsc-session-group-title' },
+                  h('span', null, group),
+                  h('b', null, String(grouped[group].length))),
+                grouped[group].map((session) => {
+                  const failed = session.failed === true || String(session.state || '').toLowerCase() === 'failed' || Boolean(session.lastError)
+                  const status = session.running ? 'running' : failed ? 'failed' : 'idle'
+                  const pct = Math.max(0, Math.min(100, Number(session.contextPct) || 0))
+                  return h('div', {
+                    key: session.sessionId,
+                    className: 'dsc-session-row' + (selected && selected.sessionId === session.sessionId ? ' is-on' : ''),
+                    onClick: () => select(session),
+                    title: '点击打开会话',
+                  },
+                    h('span', { className: 'dsc-session-dot ' + status }),
+                    h('span', { className: 'dsc-session-name' }, session.title || session.sessionId),
+                    h('span', { className: 'dsc-session-meta' }, `${Number(session.turns) || 0} 轮`),
+                    h('span', { className: 'dsc-session-ctx' + (pct > 60 ? ' warn' : '') }, `${pct}%`),
+                    h('span', { className: 'dsc-session-time' }, sessionAgo(session.lastActive)))
+                })))
+            : h('div', { className: 'dsc-empty' }, '没有正在运行或最近活跃的会话。')),
+        selected
+          ? h('div', { className: 'dsc-session-actions', style: { marginTop: '8px' } },
+              h('span', { className: 'dsc-session-status' }, h('span', { className: 'dsc-dot' }), selected.title || selected.sessionId),
+              h('input', { className: 'dsc-input', value: message, placeholder: '给这个会话投递消息…', onChange: (e) => setMessage(e.target.value), onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey) inject() } }),
+              h('button', { type: 'button', className: 'dsc-btn primary', disabled: busy || !message.trim(), onClick: inject }, '投递'),
+              h('button', { type: 'button', className: 'dsc-btn', disabled: busy || !selected.running, onClick: interrupt }, '打断'),
+              h('button', { type: 'button', className: 'dsc-btn', onClick: () => openSession(selected) }, '打开'))
+          : null,
+        notice ? h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, notice) : null,
+      )
+    }
+
     function OverviewView(props) {
       const { snap, tr, onOpen, act, busy } = props
       const [cleanPreview, setCleanPreview] = React.useState(null)
@@ -1227,6 +1447,7 @@ window.__ModuleLoader__.load({
       return h(
         React.Fragment,
         null,
+        h(SessionRadar, null),
         h(
           'section',
           { className: 'dsc-card' },
@@ -1234,9 +1455,11 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dsc-tasks' },
-            (snap.tasks || []).map((task) =>
-              h(TaskCard, { key: task.id, task: task, tr: tr, onOpen: () => onOpen(tabOf[task.id] || 'code') }),
-            ),
+            (snap.tasks || []).length
+              ? (snap.tasks || []).map((task) =>
+                  h(TaskCard, { key: task.id, task: task, tr: tr, onOpen: () => onOpen(tabOf[task.id] || 'code') }),
+                )
+              : h('div', { className: 'dsc-empty' }, '暂无任务注册。DLC 或流水线启动后会显示在这里。'),
           ),
         ),
         h(
@@ -1323,8 +1546,13 @@ window.__ModuleLoader__.load({
                     ...shownModels.map((m) => h('th', { key: m }, shortModel(m)))))
                   for (const k of group) {
                     rows.push(h('tr', { key: k.id },
-                      h('td', { title: k.tasks && k.tasks.length ? '计划：' + k.tasks.join('/') : '计划：空闲' },
-                        h('b', null, k.label), h('span', { className: 'dsc-hint' }, '  ' + provider)),
+                      h('td', { title: (k.tasks && k.tasks.length ? '计划：' + k.tasks.join('/') : '计划：空闲') + (k.resetAt ? ' · 重置 ' + new Date(k.resetAt).toLocaleString() : '') },
+                        h('b', null, k.label),
+                        h('span', { className: 'dsc-key-state ' + (k.state || 'available') },
+                          k.state === 'used' ? '用完' + (k.resetText ? ' · ' + k.resetText : '')
+                            : k.state === 'limited' ? '限流中' + (k.retryAfter ? ' · ' + k.retryAfter + 's' : '')
+                              : '可用' + (k.resetText ? ' · ' + k.resetText : '')),
+                        h('span', { className: 'dsc-hint' }, '  ' + provider)),
                       ...shownModels.map((m) => {
                         const cell = (matrix.cells || []).find((c) => c.key === k.id && c.model === m)
                         return h('td', { key: m, className: cell ? 'dsc-cell-busy' : '' }, cell ? `${cell.task} ${cell.busy}` : '')
@@ -1883,10 +2111,22 @@ window.__ModuleLoader__.load({
       const [reportText, setReportText] = React.useState('')
       const [evalRows, setEvalRows] = React.useState([])
       const [evalModel, setEvalModel] = React.useState('')
+      const [evalKey, setEvalKey] = React.useState('bridge')
+      const [evalKeyName, setEvalKeyName] = React.useState('bridge-8799')
+      const [evalProvider, setEvalProvider] = React.useState('opencode')
+      const [evalBase, setEvalBase] = React.useState('http://127.0.0.1:8799/v1')
       const [evalMsg, setEvalMsg] = React.useState('')
+      const [evalq, setEvalq] = React.useState('')
+      const [probeMsg, setProbeMsg] = React.useState('')
       const [progress, setProgress] = React.useState({ sessions: { running: [] } })
       const [recentLogs, setRecentLogs] = React.useState([])
       const [health, setHealth] = React.useState({})
+      const [workbuddy, setWorkbuddy] = React.useState({})
+      const [gateway, setGateway] = React.useState(null)
+      const [gatewayPort, setGatewayPort] = React.useState('8327')
+      const [gatewayMsg, setGatewayMsg] = React.useState('')
+      const [freeGateway, setFreeGateway] = React.useState(null)
+      const [freeGatewayMsg, setFreeGatewayMsg] = React.useState('')
       React.useEffect(() => {
         const loadEval = () => fetch('/dsh-console/api/model-eval')
           .then((r) => r.json())
@@ -1900,10 +2140,22 @@ window.__ModuleLoader__.load({
         loadLogs()
         const loadHealth = () => fetch('/dsh-console/api/health').then((r) => r.json()).then((data) => setHealth(data || {})).catch(() => setHealth({}))
         loadHealth()
+        const loadWorkbuddy = () => Promise.all([
+          fetch('/dsh-console/api/workbuddy').then((r) => r.json()).catch(() => ({ ok: false })),
+          fetch('/dsh-console/api/xdpool').then((r) => r.json()).catch(() => ({})),
+        ]).then(([wb, xd]) => setWorkbuddy({ ...(wb || {}), aggregate: (xd || {}).aggregate || null })).catch(() => setWorkbuddy({ ok: false }))
+        loadWorkbuddy()
+        const loadGateway = () => fetch('/plugins/dsh-xdpool/relay', { credentials: 'same-origin' }).then((r) => r.json()).then((data) => { setGateway(data || null); if (data && data.port && !gatewayPort) setGatewayPort(String(data.port)) }).catch(() => setGateway(null))
+        loadGateway()
+        const loadFreeGateway = () => fetch('/dsh-console/api/free-gateway').then((r) => r.json()).then((data) => setFreeGateway(data || null)).catch(() => setFreeGateway(null))
+        loadFreeGateway()
         const timer = setInterval(loadProgress, 5000)
         const logTimer = setInterval(loadLogs, 10000)
         const healthTimer = setInterval(loadHealth, 15000)
-        return () => { clearInterval(evalTimer); clearInterval(timer); clearInterval(logTimer); clearInterval(healthTimer) }
+        const wbTimer = setInterval(loadWorkbuddy, 30000)
+        const gwTimer = setInterval(loadGateway, 15000)
+        const fgTimer = setInterval(loadFreeGateway, 15000)
+        return () => { clearInterval(evalTimer); clearInterval(timer); clearInterval(logTimer); clearInterval(healthTimer); clearInterval(wbTimer); clearInterval(gwTimer); clearInterval(fgTimer) }
       }, [])
       const loadCommander = React.useCallback(() => {
         fetch('/dsh-console/api/commander')
@@ -1932,6 +2184,8 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [])
       const openNames = (openFree.models || []).map((m) => m.name)
+      const evalFilter = evalq.trim().toLowerCase()
+      const shownEvalRows = evalRows.filter((row) => !evalFilter || [row.model, row.provider, row.keyName].some((v) => String(v || '').toLowerCase().includes(evalFilter)))
       const allModelNames = [...ALL_MODELS, ...openNames]
       const totalActive = allModelNames.filter((m) => stateOf(m) === 'active')
       const totalBackup = allModelNames.filter((m) => stateOf(m) === 'backup')
@@ -1981,6 +2235,8 @@ window.__ModuleLoader__.load({
         'ai-think': '两轮思考',
       }
       const etaMap = Object.fromEntries((((snap.eta || {}).items) || []).map((item) => [item.id, item]))
+      const aggregateProviders = ((workbuddy.aggregate || {}).providers) || []
+      const usefulAggregate = aggregateProviders.filter((x) => x.configured || x.enabled || x.category === 'local' || x.category === 'free').length
       return h(
         React.Fragment,
         null,
@@ -1998,6 +2254,110 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dsc-chip' }, '总指挥 ', h('b', null, String((commander.goals || []).length))),
             h('span', { className: 'dsc-chip' }, '冒烟 ', h('b', null, ((health.guard || {}).smoke || {}).ok ? 'PASS' : '—')),
             h('span', { className: 'dsc-chip' }, '免费池 ', h('b', null, ((health.freeCooldown || {}).until || 0) > Date.now() / 1000 ? '冷却' : '可用')))),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'WorkBuddy / XD Pool', h('small', null, workbuddy.installed ? '宿主已安装' : '未安装')),
+          workbuddy.ok || workbuddy.installed
+            ? h(React.Fragment, null,
+                (() => {
+                  const wbAccounts = Array.isArray(workbuddy.accounts) ? workbuddy.accounts : (((workbuddy.status || {}).accounts) || [])
+                  const wbTotal = workbuddy.total !== undefined ? workbuddy.total : wbAccounts.reduce((sum, a) => sum + Number(((a || {}).credits || {}).total || 0), 0)
+                  return h(React.Fragment, null,
+                    h('div', { className: 'dsc-chips' },
+                      h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(wbAccounts.length))),
+                      h('span', { className: 'dsc-chip' }, '积分 ', h('b', null, String(wbTotal))),
+                      h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, workbuddy.source || 'native')),
+                      h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String(usefulAggregate) + '/' + String(aggregateProviders.length)))),
+                    wbAccounts.length
+                      ? h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
+                          h('thead', null, h('tr', null, h('th', null, '账号'), h('th', null, '积分'), h('th', null, '连签'), h('th', null, '状态'))),
+                          h('tbody', null, wbAccounts.slice(0, 6).map((a) => h('tr', { key: a.id || a.label },
+                            h('td', null, a.nickname || a.label || a.id),
+                            h('td', null, String((a.credits || {}).total || 0)),
+                            h('td', null, a.checkin && a.checkin.streakDays ? String(a.checkin.streakDays) + ' 天' : '—'),
+                            h('td', null, a.ok === false ? ('失败: ' + String(a.error || '').slice(0, 30)) : a.cooling ? '冷却' : a.disabled ? '停用' : '可用')))))
+                      : h('div', { className: 'dsc-hint' }, workbuddy.error || '没有发现 WorkBuddy 账号。'),
+                    h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+                      'WorkBuddy 通过 XD Pool 的 provider 接入，不是单独的 OpenAI API key；需要复用积分时用下方网关。'))
+                })())
+            : h('div', { className: 'dsc-hint' }, workbuddy.error || '未检测到 WorkBuddy；需要先在 WorkBuddy 桌面 App 登录。')),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'XD Pool 网关 / WorkBuddy Bridge', h('small', null, gateway ? (gateway.listening ? '监听中' : gateway.enabled ? '已启用未监听' : '未启用') : '读取中')),
+          gateway
+            ? h(React.Fragment, null,
+                h('div', { className: 'dsc-chips' },
+                  h('span', { className: 'dsc-chip' }, '启用 ', h('b', null, gateway.enabled ? '是' : '否')),
+                  h('span', { className: 'dsc-chip' }, '监听 ', h('b', null, gateway.listening ? '是' : '否')),
+                  h('span', { className: 'dsc-chip' }, '端口 ', h('b', null, String(gateway.port || 8326))),
+                  h('span', { className: 'dsc-chip' }, 'WorkBuddy 候选 ', h('b', null, String((gateway.candidates || []).filter((x) => String(x.source || '').includes('workbuddy')).length)))),
+                gateway.endpoint
+                  ? h('div', { className: 'dsc-hint', style: { marginTop: '8px', wordBreak: 'break-all' } }, 'Endpoint: ' + gateway.endpoint)
+                  : null,
+                gateway.error
+                  ? h('div', { className: 'dsc-hint', style: { marginTop: '4px', color: 'var(--dsw-alias-state-error-primary)' } }, '网关错误：' + gateway.error)
+                  : null,
+                gateway.key
+                  ? h('div', { className: 'dsc-hint', style: { marginTop: '4px', wordBreak: 'break-all' } }, 'Relay key: ' + String(gateway.key).slice(0, 6) + '••••••' + String(gateway.key).slice(-4))
+                  : null,
+                h('div', { className: 'dsc-actions', style: { marginTop: '8px' } },
+                  h('button', {
+                    type: 'button', className: 'dsc-btn' + (gateway.enabled ? '' : ' primary'),
+                    onClick: async () => {
+                      setGatewayMsg(gateway.enabled ? '停用中…' : '启用中…')
+                      try {
+                        const r = await fetch('/plugins/dsh-xdpool/relay', {
+                          method: 'POST', credentials: 'same-origin',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify(gateway.enabled ? { enabled: false } : { enabled: true, host: '127.0.0.1', port: Number(gatewayPort) || 8326 }),
+                        })
+                        const data = await r.json()
+                        if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status)
+                        setGateway(data)
+                        setGatewayMsg(!gateway.enabled ? (data.listening ? '网关已启用' : '已启用但未监听') : '网关已停用')
+                      } catch (e) { setGatewayMsg('操作失败：' + String((e && e.message) || e)) }
+                    },
+                  }, gateway.enabled ? '停用网关' : '启用网关'),
+                  h('input', { className: 'dsc-input', value: gatewayPort, onChange: (e) => setGatewayPort(e.target.value), placeholder: '端口', style: { width: '90px' } }),
+                  gateway.endpoint
+                    ? h('button', { type: 'button', className: 'dsc-btn', onClick: () => { try { navigator.clipboard.writeText(gateway.endpoint) } catch { /* ignore */ } } }, '复制 Endpoint')
+                    : null,
+                  gateway.key
+                    ? h('button', { type: 'button', className: 'dsc-btn', onClick: () => { try { navigator.clipboard.writeText(gateway.key) } catch { /* ignore */ } } }, '复制 Relay Key')
+                    : null,
+                  gatewayMsg ? h('span', { className: 'dsc-hint' }, gatewayMsg) : null),
+                h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
+                  '这是 XD Pool 的本地 OpenAI 兼容网关；启用后会生成 relay key，WorkBuddy 走同一通道。网关默认只监听 127.0.0.1。'))
+            : h('div', { className: 'dsc-hint' }, '未读取到 XD Pool 网关状态。')),
+        h(
+          'section',
+          { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '统一免费入口（原型）', h('small', null, freeGateway && freeGateway.running ? '运行中' : '未运行')),
+          h('div', { className: 'dsc-hint' },
+            '一把 key 暴露 OpenCode 和 XD Pool 两个本地上游；XD Pool 的 buddy: 模型需要先在上一张卡启用网关。'),
+          h('div', { className: 'dsc-chips', style: { marginTop: '8px' } },
+            h('span', { className: 'dsc-chip' }, 'endpoint ', h('b', null, 'http://127.0.0.1:8810/v1')),
+            h('span', { className: 'dsc-chip' }, 'key ', h('b', null, 'free-pool')),
+            h('span', { className: 'dsc-chip' }, '上游 ', h('b', null, 'OpenCode + XD Pool'))),
+          h('div', { className: 'dsc-actions', style: { marginTop: '8px' } },
+            h('button', {
+              type: 'button', className: 'dsc-btn' + (freeGateway && freeGateway.running ? '' : ' primary'),
+              onClick: async () => {
+                setFreeGatewayMsg(freeGateway && freeGateway.running ? '停止中…' : '启动中…')
+                try {
+                  const r = await fetch('/dsh-console/api/free-gateway', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: freeGateway && freeGateway.running ? 'stop' : 'start' }) })
+                  const data = await r.json()
+                  if (!r.ok) throw new Error(data.message || 'HTTP ' + r.status)
+                  setFreeGateway(data)
+                  setFreeGatewayMsg(data.running ? '已启动' : '已停止')
+                } catch (e) { setFreeGatewayMsg('操作失败：' + String((e && e.message) || e)) }
+              },
+            }, freeGateway && freeGateway.running ? '停止入口' : '启动入口'),
+            h('button', { type: 'button', className: 'dsc-btn', onClick: () => { try { navigator.clipboard.writeText('http://127.0.0.1:8810/v1') } catch { /* ignore */ } } }, '复制 Endpoint'),
+            h('button', { type: 'button', className: 'dsc-btn', onClick: () => { try { navigator.clipboard.writeText('free-pool') } catch { /* ignore */ } } }, '复制 Key'),
+            freeGatewayMsg ? h('span', { className: 'dsc-hint' }, freeGatewayMsg) : null)),
         h(
           'details',
           { className: 'dsc-card' },
@@ -2033,25 +2393,46 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'dsc-mini', onClick: () => setOpenAll('disabled') }, '全部关闭'))
             : null,
           h('div', { className: 'dsc-hint', style: { marginTop: '12px', fontWeight: 600 } }, `模型评测（${evalRows.length}）`),
+          h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
+            h('input', { className: 'dsc-input', value: evalq, placeholder: '按模型 / 供应商 / 密钥筛选', onChange: (e) => setEvalq(e.target.value), style: { flex: '1', minWidth: '220px' } }),
+            evalq ? h('button', { type: 'button', className: 'dsc-mini', onClick: () => setEvalq('') }, '清空') : null),
           openNames.length
             ? h('div', { className: 'dsc-actions', style: { marginTop: '6px' } },
-                h('select', { className: 'dsc-input', value: evalModel, onChange: (e) => setEvalModel(e.target.value), style: { maxWidth: '300px' } },
-                  openNames.map((name) => h('option', { key: name, value: name }, shortModel(name)))),
+                h('select', { className: 'dsc-input', value: evalModel, onChange: (e) => setEvalModel(e.target.value), style: { maxWidth: '240px' } },
+                  Array.from(new Set(allModelNames)).map((name) => h('option', { key: name, value: name }, shortModel(name)))),
+                h('input', { className: 'dsc-input', value: evalProvider, onChange: (e) => setEvalProvider(e.target.value), placeholder: 'provider', style: { width: '110px' } }),
+                h('input', { className: 'dsc-input', value: evalKeyName, onChange: (e) => setEvalKeyName(e.target.value), placeholder: 'key 名称', style: { width: '130px' } }),
+                h('input', { className: 'dsc-input', value: evalBase, onChange: (e) => setEvalBase(e.target.value), placeholder: 'base URL', style: { minWidth: '210px', flex: '1' } }),
+                h('input', { className: 'dsc-input', value: evalKey, onChange: (e) => setEvalKey(e.target.value), placeholder: 'key 或 bridge', style: { width: '130px' } }),
                 h('button', { type: 'button', className: 'dsc-mini', onClick: async () => {
                   setEvalMsg('评测已启动…')
                   try {
-                    const r = await fetch('/dsh-console/api/model-eval/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: evalModel, baseUrl: 'http://127.0.0.1:8799/v1', key: 'bridge', provider: 'opencode' }) })
+                    const r = await fetch('/dsh-console/api/model-eval/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: evalModel, baseUrl: evalBase, key: evalKey, provider: evalProvider, keyName: evalKeyName }) })
                     if (!r.ok) throw new Error('HTTP ' + r.status)
                     setEvalMsg('后台评测中，约 2-3 分钟')
                   } catch (e) { setEvalMsg('启动失败：' + String((e && e.message) || e)) }
                 } }, '运行评测'),
+                h('button', { type: 'button', className: 'dsc-mini', onClick: async () => {
+                  setProbeMsg('测延时中…')
+                  try {
+                    const r = await fetch('/dsh-console/api/model-eval/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: evalModel, baseUrl: evalBase, key: evalKey }) })
+                    const data = await r.json()
+                    if (!data.ok) throw new Error(data.message || data.error || 'HTTP ' + r.status)
+                    setProbeMsg(`延时 ${data.latency_ms} ms · tokens ${((data.usage || {}).total_tokens) || 0}`)
+                  } catch (e) { setProbeMsg('测延时失败：' + String((e && e.message) || e)) }
+                } }, '测延时/Token'),
+                probeMsg ? h('span', { className: 'dsc-hint' }, probeMsg) : null,
                 evalMsg ? h('span', { className: 'dsc-hint' }, evalMsg) : null)
             : null,
           evalRows.length
             ? h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
-                h('thead', null, h('tr', null, h('th', null, '模型'), h('th', null, '鹈鹕'), h('th', null, '逻辑'), h('th', null, 'JSON'), h('th', null, '长上下文'), h('th', null, '代码'), h('th', null, '工具诚实'), h('th', null, '跟踪'), h('th', null, '空间'), h('th', null, '指令'), h('th', null, '总分'))),
-                h('tbody', null, evalRows.slice(-10).map((row) => h('tr', { key: row.model },
+                h('thead', null, h('tr', null, h('th', null, '模型'), h('th', null, '供应商'), h('th', null, '密钥'), h('th', null, '延时'), h('th', null, 'tokens'), h('th', null, '鹈鹕'), h('th', null, '逻辑'), h('th', null, 'JSON'), h('th', null, '长上下文'), h('th', null, '代码'), h('th', null, '工具诚实'), h('th', null, '跟踪'), h('th', null, '空间'), h('th', null, '指令'), h('th', null, '总分'))),
+                h('tbody', null, shownEvalRows.slice(-10).map((row) => h('tr', { key: (row.model || '') + (row.provider || '') + (row.keyName || '') + (row.at || '') },
                   h('td', null, shortModel(row.model)),
+                  h('td', null, row.provider || '—'),
+                  h('td', null, row.keyName || '—'),
+                  h('td', null, row.latency_ms ? `${row.latency_ms} ms` : '—'),
+                  h('td', null, row.tokens ? String(row.tokens) : '—'),
                   h('td', null, String((row.dimensions || {}).pelican || 0)),
                   h('td', null, String((row.dimensions || {}).logic || 0)),
                   h('td', null, String((row.dimensions || {}).json || 0)),
@@ -2374,19 +2755,34 @@ window.__ModuleLoader__.load({
       const [data, setData] = React.useState(null)
       const load = React.useCallback(async () => {
         try {
-          const [xd, prov] = await Promise.all([
+          const [xd, prov, wb] = await Promise.all([
             call(`/dsh-console/api/xdpool?t=${Date.now()}`),
             call(`/dsh-console/api/providers?t=${Date.now()}`),
+            call(`/dsh-console/api/workbuddy?t=${Date.now()}`).catch(() => ({ ok: false })),
           ])
-          setData({ xd: xd || {}, prov: prov || {} })
+          setData({ xd: xd || {}, prov: prov || {}, wb: wb || {} })
         } catch (e) {
-          setData({ xd: { installed: false, message: String(e) }, prov: {} })
+          setData({ xd: { installed: false, message: String(e) }, prov: {}, wb: { ok: false } })
         }
       }, [])
       React.useEffect(() => { load() }, [load])
       const xd = (data && data.xd) || {}
       const st = xd.status || {}
       const prov = (data && data.prov) || {}
+      const wb = (data && data.wb) || {}
+      const nativeAccounts = Array.isArray(wb.accounts) ? wb.accounts : []
+      const accounts = nativeAccounts.length ? nativeAccounts : (Array.isArray(st.accounts) ? st.accounts : [])
+      const credits = wb.total !== undefined ? Number(wb.total || 0) : accounts.reduce((sum, a) => sum + Number(((a || {}).credits || {}).total || 0), 0)
+      const [aggq, setAggq] = React.useState('')
+      const [aggCat, setAggCat] = React.useState('useful')
+      const aggregate = (xd.aggregate || {}).providers || []
+      const configuredAgg = aggregate.filter((x) => x.configured || x.enabled || x.category === 'local' || x.category === 'free').length
+      const aggCats = Array.from(new Set(aggregate.map((x) => x.category || 'other')))
+      const aggRows = aggregate.filter((x) => {
+        const q = aggq.trim().toLowerCase()
+        const useful = x.configured || x.enabled || x.category === 'local' || x.category === 'free'
+        return (aggCat === 'all' || (aggCat === 'useful' ? useful : (x.category || 'other') === aggCat)) && (!q || [x.name, x.id, x.authKind, x.format].some((v) => String(v || '').toLowerCase().includes(q)))
+      }).slice(0, 60)
       return h('div', { className: 'dsc-root', style: { padding: '4px' } },
         h('style', null, CSS),
         h('section', { className: 'dsc-card' },
@@ -2394,12 +2790,14 @@ window.__ModuleLoader__.load({
           xd.installed
             ? h(React.Fragment, null,
               h('div', { className: 'dsc-chips' },
-                h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String((st.accounts || []).length))),
+                h('span', { className: 'dsc-chip' }, '账号 ', h('b', null, String(accounts.length))),
+                h('span', { className: 'dsc-chip' }, 'WorkBuddy 积分 ', h('b', null, String(credits))),
+                h('span', { className: 'dsc-chip' }, '积分来源 ', h('b', null, wb.source || 'xdpool')),
                 h('span', { className: 'dsc-chip' }, '模型 ', h('b', null, String((st.models || []).length))),
                 h('span', { className: 'dsc-chip' }, '冷却 ', h('b', null, String(st.cooling || 0))),
-                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String((((xd.aggregate || {}).providers) || []).length)))),
+                h('span', { className: 'dsc-chip' }, '聚合渠道 ', h('b', null, String(configuredAgg) + '/' + String(aggregate.length)))),
               h('div', { className: 'dsc-hint', style: { marginTop: '8px' } },
-                '账号池、扫码登录、76 家聚合渠道由 XD Pool 宿主维护；这里提供状态和统一模型视图。'))
+                '账号池、扫码登录、76 家聚合渠道由 XD Pool 宿主维护；WorkBuddy 账号和积分现在优先直读本地账号文件 + WorkBuddy billing，不再只依赖伴侣 API。'))
             : h('div', { className: 'dsc-hint' }, xd.message || '未检测到 XD Pool。')),
         h('section', { className: 'dsc-card' },
           h('h3', { className: 'dsc-sec-title' }, '统一模型来源', h('small', null, 'GET /dsh-console/api/providers')),
@@ -2408,6 +2806,26 @@ window.__ModuleLoader__.load({
               s.name || s.id, ' ', h('b', null, String(s.models || 0)))))),
           h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
             h('button', { type: 'button', className: 'dsc-btn primary', onClick: load }, '刷新'))),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, 'XD Pool 聚合渠道', h('small', null, `${aggRows.length} 个推荐 / ${aggregate.length} 个总数`)),
+          h('div', { className: 'dsc-hint' }, '76 家里大部分没配置；默认只显示已配置、本地和免费渠道。'),
+          h('div', { className: 'dsc-actions', style: { marginBottom: '8px' } },
+            h('input', { className: 'dsc-input', value: aggq, placeholder: '搜索渠道 / 分类 / auth', onChange: (e) => setAggq(e.target.value), style: { flex: '1', minWidth: '220px' } }),
+            h('button', { type: 'button', className: 'dsc-btn', onClick: () => { setAggq(''); setAggCat('useful') } }, '重置')),
+          h('div', { className: 'dsc-chips', style: { marginBottom: '8px' } },
+            ...[['useful', `推荐 ${configuredAgg}`], ['all', `全部 ${aggregate.length}`], ...aggCats.map((c) => [c, c])].map(([key, label]) => h('button', {
+              key, type: 'button', className: 'dsc-chip' + (aggCat === key ? ' on' : ''), onClick: () => setAggCat(key),
+            }, label))),
+          aggRows.length
+            ? h('table', { className: 'dsc-table' },
+                h('thead', null, h('tr', null, h('th', null, '渠道'), h('th', null, '分类'), h('th', null, '鉴权'), h('th', null, '格式'), h('th', null, '状态'))),
+                h('tbody', null, aggRows.map((x) => h('tr', { key: x.id },
+                  h('td', null, x.name || x.id),
+                  h('td', null, x.category || '—'),
+                  h('td', null, x.authKind || '—'),
+                  h('td', null, x.format || '—'),
+                  h('td', null, x.enabled ? '启用' : x.configured ? '已配置' : '未配置')))))
+            : h('div', { className: 'dsc-hint' }, '没有渠道；先确认 XD Pool 已加载。')),
       )
     }
 
@@ -2520,16 +2938,26 @@ window.__ModuleLoader__.load({
           { className: 'dsc-inner' },
           h(
             'header',
-            { className: 'dsc-head' },
+            { className: 'dsc-herobar' },
             h(
               'div',
-              { className: 'dsc-title' },
-              h('span', { className: 'dsc-logo' }, h(ConsoleIcon, { size: 22 })),
-              h('div', null, h('h1', { className: 'dsc-h1' }, `${tr('title')}${snap.pluginVersion ? ' v' + snap.pluginVersion : ''}`), h('p', { className: 'dsc-sub' }, tr('subtitle'))),
+              { className: 'dsc-head' },
+              h(
+                'div',
+                { className: 'dsc-title' },
+                h('span', { className: 'dsc-logo' }, h(ConsoleIcon, { size: 24 })),
+                h('div', null, h('h1', { className: 'dsc-h1' }, `${tr('title')}${snap.pluginVersion ? ' v' + snap.pluginVersion : ''}`), h('p', { className: 'dsc-sub' }, tr('subtitle'))),
+              ),
+              h(
+                'div',
+                { className: 'dsc-headright' },
+                h('button', { type: 'button', className: 'dsc-btn', onClick: () => setAutoRefresh(!autoRefresh), title: tr('autoRefreshDesc') }, tr('autoRefresh') + '：' + (autoRefresh ? tr('on') : tr('off'))),
+                h('button', { type: 'button', className: 'dsc-btn', onClick: () => load(true), disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
+              ),
             ),
             h(
               'div',
-              { className: 'dsc-headright' },
+              { className: 'dsc-statusrow' },
               (snap.tasks || []).map((task) =>
                 h(
                   'span',
@@ -2540,20 +2968,19 @@ window.__ModuleLoader__.load({
               ),
               h('span', { className: 'dsc-pill' + ((snap.balanceLoop || {}).state === 'running' ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBalance') + ' ' + ((snap.balanceLoop || {}).state === 'running' ? tr('running') : tr('stopped'))),
               h('span', { className: 'dsc-pill' + (bot.running ? ' on' : ' muted') }, h('span', { className: 'dsc-dot' }), tr('tabBot') + ' ' + (bot.running ? tr('running') : tr('stopped'))),
-              h('button', { type: 'button', className: 'dsc-btn', onClick: () => setAutoRefresh(!autoRefresh), title: tr('autoRefreshDesc') }, tr('autoRefresh') + '：' + (autoRefresh ? tr('on') : tr('off'))),
-              h('button', { type: 'button', className: 'dsc-btn', onClick: () => load(true), disabled: Boolean(busy), title: 'Ctrl+R' }, tr('refresh')),
             ),
-          ),
-          h(
-            'nav',
-            { className: 'dsc-tabs' },
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'home' ? ' is-on' : ''), onClick: () => setTab('home') }, tr('tabHome')),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'workflow' ? ' is-on' : ''), onClick: () => setTab('workflow') }, tr('tabWorkflow')),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'free' ? ' is-on' : ''), onClick: () => setTab('free') }, '免费池'),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'review' ? ' is-on' : ''), onClick: () => setTab('review') }, '复盘'),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'schedule' ? ' is-on' : ''), onClick: () => setTab('schedule') }, '定时'),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'settings' ? ' is-on' : ''), onClick: () => setTab('settings') }, '设置'),
-            h('button', { type: 'button', className: 'dsc-tab' + (tab === 'bot' ? ' is-on' : ''), onClick: () => setTab('bot') }, tr('tabBot')),
+            h(
+              'nav',
+              { className: 'dsc-tabs' },
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'home' ? ' is-on' : ''), onClick: () => setTab('home') }, tr('tabHome')),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'workflow' ? ' is-on' : ''), onClick: () => setTab('workflow') }, tr('tabWorkflow')),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'free' ? ' is-on' : ''), onClick: () => setTab('free') }, '免费池'),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'radar' ? ' is-on' : ''), onClick: () => setTab('radar') }, '情报'),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'review' ? ' is-on' : ''), onClick: () => setTab('review') }, '复盘'),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'schedule' ? ' is-on' : ''), onClick: () => setTab('schedule') }, '定时'),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'settings' ? ' is-on' : ''), onClick: () => setTab('settings') }, '设置'),
+              h('button', { type: 'button', className: 'dsc-tab' + (tab === 'bot' ? ' is-on' : ''), onClick: () => setTab('bot') }, tr('tabBot')),
+            ),
           ),
           error ? h('div', { className: 'dsc-banner err' }, error) : null,
           tab === 'home'
@@ -2567,9 +2994,11 @@ window.__ModuleLoader__.load({
             : tab === 'workflow'
               ? h(WorkflowView, { snap, tr, act, busy })
               : tab === 'free'
-                ? h(FreePoolView, { snap, act, busy })
-                : tab === 'review'
-                  ? h(ReviewView, { snap, act, busy })
+                ? h(FreePoolView, { snap, act, busy, onRadar: () => setTab('radar') })
+                : tab === 'radar'
+                  ? h(RadarView, null)
+                  : tab === 'review'
+                    ? h(ReviewView, { snap, act, busy })
                   : tab === 'schedule'
                     ? h(ScheduleView, null)
                     : tab === 'settings'
@@ -2580,11 +3009,175 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function FreePoolView({ snap, act, busy }) {
+    const RADAR_SOURCE_LABEL = { github: 'GitHub', bilibili: 'B站', hackernews: 'HN', xiaoheihe: '小黑盒', xiaomi: '小米社区', web: 'Web' }
+    const RADAR_QUICK = ['白嫖 AI', '免费 API', '免费密钥', 'WorkBuddy 积分', 'DSH 插件', 'Agent 优化', '免费模型', 'AI 公益站']
+    const RADAR_TAG_WORDS = ['免费', '白嫖', 'API', '插件', 'Agent', 'DeepSeek', 'Claude', 'Gemini', 'MCP', '额度', '中转']
+
+    function RadarView() {
+      const [query, setQuery] = React.useState('白嫖 AI 插件 Agent')
+      const [data, setData] = React.useState(null)
+      const [loading, setLoading] = React.useState(false)
+      const [error, setError] = React.useState('')
+      const [imported, setImported] = React.useState({})
+      const [saving, setSaving] = React.useState('')
+      const [sourceFilter, setSourceFilter] = React.useState('all')
+      const [sortBy, setSortBy] = React.useState('score')
+      const [expandedUrl, setExpandedUrl] = React.useState('')
+      const [hotMode, setHotMode] = React.useState(false)
+      const [history, setHistory] = React.useState(() => {
+        try { return JSON.parse(localStorage.getItem('dsc_radar_history') || '[]') } catch { return [] }
+      })
+      const addCandidate = React.useCallback(async (row) => {
+        if (!row || !row.url) return
+        setSaving(row.url)
+        try {
+          const result = await call('/dsh-console/api/radar/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: row.url, title: row.title, source: row.source }),
+          })
+          if (result && result.ok) setImported((prev) => ({ ...prev, [row.url]: true }))
+          else setError((result && result.message) || '加入候选失败')
+        } catch (failure) {
+          setError(String((failure && failure.message) || failure))
+        } finally {
+          setSaving('')
+        }
+      }, [])
+      const load = React.useCallback((q, refresh = false, hot = false) => {
+        setLoading(true)
+        setError('')
+        setHotMode(Boolean(hot))
+        setHistory((prev) => {
+          const next = [q, ...prev.filter((x) => x !== q)].slice(0, 8)
+          try { localStorage.setItem('dsc_radar_history', JSON.stringify(next)) } catch { /* ignore */ }
+          return next
+        })
+        call(`/dsh-console/api/radar?q=${encodeURIComponent(q)}&limit=30&refresh=${refresh ? 1 : 0}&hot=${hot ? 1 : 0}&t=${Date.now()}`)
+          .then((result) => { if (result && result.ok) setData(result); else setError((result && result.message) || '雷达没有返回结果') })
+          .catch((failure) => setError(String((failure && failure.message) || failure)))
+          .finally(() => setLoading(false))
+      }, [])
+      React.useEffect(() => { load(query) }, [])
+      const items = (data && data.items) || []
+      const sourceMap = {}
+      for (const source of (data && data.sources) || []) {
+        if (!sourceMap[source.id] || source.ok) sourceMap[source.id] = source
+      }
+      const sources = Object.values(sourceMap)
+      const activeSources = sources.filter((s) => s.ok && Number(s.count || 0) > 0)
+      const effectiveFilter = sourceFilter !== 'all' && !activeSources.some((s) => s.id === sourceFilter) ? 'all' : sourceFilter
+      const visibleItems = items
+        .filter((row) => effectiveFilter === 'all' || row.source === effectiveFilter)
+        .slice()
+        .sort((a, b) => {
+          if (sortBy === 'hot') return Number(b.popularity || 0) - Number(a.popularity || 0)
+          if (sortBy === 'new') return Date.parse(b.publishedAt || 0) - Date.parse(a.publishedAt || 0)
+          return Number(b.score || 0) - Number(a.score || 0)
+        })
+      const tagsFor = (row) => {
+        const text = String(row.title || '') + ' ' + String(row.summary || '')
+        const tags = RADAR_TAG_WORDS.filter((x) => text.toLowerCase().includes(x.toLowerCase())).slice(0, 4)
+        if (row.extra) tags.push(String(row.extra).slice(0, 28))
+        return tags
+      }
+      return h(
+        React.Fragment,
+        null,
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '情报雷达', h('small', null, data ? data.generatedAt : '多源聚合')),
+          h('div', { className: 'dsc-hint' },
+            '不是单关键词搜索：GitHub、B站搜索与排行、Hacker News、小黑盒签名搜索一起查；自动扩词、去重，按相关性和热度排序，结果缓存 15 分钟。'),
+          h('div', { className: 'dsc-radar-search' },
+            h('input', {
+              className: 'dsc-input', type: 'text', value: query,
+              placeholder: '例如：白嫖 AI、免费 API、DSH 插件、Agent 优化',
+              onChange: (e) => setQuery(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter' && !loading) load(query, true) },
+            }),
+            h('button', { type: 'button', className: 'dsc-btn primary', disabled: loading, onClick: () => load(query, true, false) }, loading ? '扫描中…' : '聚合搜索'),
+            h('button', { type: 'button', className: 'dsc-btn' + (hotMode ? ' primary' : ''), disabled: loading, onClick: () => load(query, true, true) }, '热门榜'),
+            h('button', { type: 'button', className: 'dsc-btn', disabled: loading, onClick: () => load(query, true, false) }, '刷新缓存')),
+          h('div', { className: 'dsc-chips', style: { marginTop: '10px' } },
+            ...RADAR_QUICK.map((q) => h('button', {
+              key: q, type: 'button', className: 'dsc-chip' + (q === query ? ' on' : ''),
+              onClick: () => { setQuery(q); load(q, false) },
+            }, q))),
+          history.length
+            ? h('div', { className: 'dsc-chips', style: { marginTop: '8px' } },
+                h('span', { className: 'dsc-hint' }, '最近：'),
+                ...history.map((q) => h('button', {
+                  key: 'h-' + q, type: 'button', className: 'dsc-chip',
+                  onClick: () => { setQuery(q); load(q, false) },
+                }, q)))
+            : null,
+          h('div', { className: 'dsc-chips', style: { marginTop: '8px' } },
+            h('span', { className: 'dsc-hint' }, '外部社区：'),
+            h('a', { className: 'dsc-chip', href: 'https://search.bilibili.com/all?keyword=' + encodeURIComponent(query), target: '_blank', rel: 'noreferrer' }, 'B站搜索'),
+            h('a', { className: 'dsc-chip', href: 'https://www.xiaoheihe.cn/', target: '_blank', rel: 'noreferrer' }, '小黑盒'),
+            h('a', { className: 'dsc-chip', href: 'https://www.xiaomi.cn/', target: '_blank', rel: 'noreferrer' }, '小米社区')),
+          h('div', { className: 'dsc-chips', style: { marginTop: '10px' } },
+            ...sources.filter((s) => !s.ok || Number(s.count || 0) > 0).map((s) => h('span', { key: s.id, className: 'dsc-chip' + (s.ok ? ' on' : '') },
+              RADAR_SOURCE_LABEL[s.id] || s.id, ' ', h('b', null, s.ok ? String(s.count || 0) : '不可用')))),
+          h('div', { className: 'dsc-radar-filters' },
+            h('span', { className: 'dsc-hint' }, '来源'),
+            h('button', { type: 'button', className: 'dsc-chip' + (effectiveFilter === 'all' ? ' on' : ''), onClick: () => setSourceFilter('all') }, '全部'),
+            ...activeSources.map((s) => h('button', {
+              key: s.id, type: 'button', className: 'dsc-chip' + (effectiveFilter === s.id ? ' on' : ''),
+              onClick: () => setSourceFilter(s.id),
+            }, RADAR_SOURCE_LABEL[s.id] || s.id)),
+            h('span', { className: 'dsc-hint', style: { marginLeft: '8px' } }, '排序'),
+            ...[['score', '相关度'], ['hot', '热度'], ['new', '最新']].map(([key, label]) => h('button', {
+              key, type: 'button', className: 'dsc-chip' + (sortBy === key ? ' on' : ''), onClick: () => setSortBy(key),
+            }, label))),
+          error ? h('div', { className: 'dsc-banner err', style: { marginTop: '10px' } }, error) : null),
+        h('section', { className: 'dsc-card' },
+          h('h3', { className: 'dsc-sec-title' }, '社区结果', h('small', null, data ? `${data.hot ? '热门榜 · ' : ''}共 ${data.total || items.length} 条，当前 ${visibleItems.length}` : '等待扫描')),
+          data && data.expanded && data.expanded.length
+            ? h('div', { className: 'dsc-hint' }, '扩词：' + data.expanded.slice(0, 6).join(' · '))
+            : null,
+          loading
+            ? h('div', { className: 'dsc-empty' }, '正在拉取 GitHub / B站 / HN / 搜索，首次可能要几十秒…')
+            : visibleItems.length
+              ? h('div', { className: 'dsc-radar-list' },
+                  ...visibleItems.map((row, index) => h('article', { key: (row.url || row.title) + index, className: 'dsc-radar-item' },
+                    h('div', { className: 'dsc-radar-top' },
+                      h('div', { className: 'dsc-radar-title' }, h('a', { href: row.url, target: '_blank', rel: 'noreferrer' }, row.title || row.url)),
+                      h('div', { className: 'dsc-actions' },
+                        h('button', {
+                          type: 'button', className: 'dsc-mini',
+                          onClick: () => setExpandedUrl(expandedUrl === row.url ? '' : row.url),
+                        }, expandedUrl === row.url ? '收起' : '详情'),
+                        h('button', {
+                          type: 'button', className: 'dsc-mini',
+                          disabled: Boolean(imported[row.url]) || saving === row.url,
+                          onClick: () => addCandidate(row),
+                        }, imported[row.url] ? '已加入候选' : saving === row.url ? '加入中…' : '加入候选'),
+                        h('span', { className: 'dsc-radar-badge ' + row.source }, RADAR_SOURCE_LABEL[row.source] || row.source))),
+                    row.summary ? h('div', { className: 'dsc-radar-summary' + (expandedUrl === row.url ? ' is-open' : '') }, row.summary) : null,
+                    expandedUrl === row.url
+                      ? h('div', { className: 'dsc-radar-detail' },
+                          h('div', null, '来源 ', h('b', null, RADAR_SOURCE_LABEL[row.source] || row.source), ' · ', row.kind || 'post'),
+                          h('div', null, '链接 ', h('a', { href: row.url, target: '_blank', rel: 'noreferrer' }, row.url)),
+                          row.extra ? h('div', null, '附加 ', row.extra) : null)
+                      : null,
+                    h('div', { className: 'dsc-radar-meta' },
+                      row.author ? h('span', null, '作者 ', h('b', null, row.author)) : null,
+                      row.popularity ? h('span', null, '热度 ', h('b', null, String(Math.round(row.popularity)))) : null,
+                      row.score !== undefined ? h('span', null, '评分 ', h('b', null, String(row.score))) : null,
+                      row.publishedAt ? h('span', null, String(row.publishedAt).slice(0, 10)) : null),
+                    h('div', { className: 'dsc-radar-tags' }, ...tagsFor(row).map((tag) => h('span', { key: tag }, tag))))))
+              : h('div', { className: 'dsc-empty' }, data ? '当前来源/筛选没有结果；换来源或点“刷新缓存”。' : '点“聚合搜索”开始。')),
+      )
+    }
+
+    function FreePoolView({ snap, act, busy, onRadar }) {
       const [xd, setXd] = React.useState(null)
       const [prov, setProv] = React.useState(null)
       const [fm, setFm] = React.useState(null)
       const [fmq, setFmq] = React.useState('')
+      const [candq, setCandq] = React.useState('')
+      const [qualityFilter, setQualityFilter] = React.useState('all')
       const [reg, setReg] = React.useState({ items: [] })
       const loadFm = React.useCallback((q = '') => {
         call(`/dsh-console/api/free-models?q=${encodeURIComponent(q)}&t=${Date.now()}`)
@@ -2606,15 +3199,13 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [loadFm])
       const fp = snap.freePool || {}
-      const sched = snap.scheduler || {}
-      const auto = snap.autoscale || {}
-      const power = snap.power || {}
-      const powerDaily = snap.powerDaily || {}
-      const resource = snap.resource || {}
-      const assets = snap.assets || {}
-      const community = snap.community || {}
       const cand = fp.candidates || {}
       const providers = Array.isArray(cand.providers) ? cand.providers : []
+      const shownProviders = providers.filter((p) => {
+        const q = candq.trim().toLowerCase()
+        const textHit = !q || [p.name, p.base_url, p.key_url, p.free_quota, p.source_url, p.quality].some((v) => String(v || '').toLowerCase().includes(q))
+        return textHit && (qualityFilter === 'all' || p.quality === qualityFilter)
+      }).sort((a, b) => Number(b.quality_score || 0) - Number(a.quality_score || 0))
       return h(
         React.Fragment,
         null,
@@ -2623,7 +3214,21 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dsc-chips' },
             h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, String((cand.sources || []).length))),
             h('span', { className: 'dsc-chip' }, '候选 ', h('b', null, String(providers.length))),
+            h('span', { className: 'dsc-chip' }, 'A ', h('b', null, String(providers.filter((p) => p.quality === 'A').length))),
+            h('span', { className: 'dsc-chip' }, 'B ', h('b', null, String(providers.filter((p) => p.quality === 'B').length))),
             h('span', { className: 'dsc-chip' }, '登记 ', h('b', null, String((fm && fm.total) || 0)))),
+          providers.length
+            ? (() => {
+                const a = providers.filter((p) => p.quality === 'A').length
+                const b = providers.filter((p) => p.quality === 'B').length
+                const c = Math.max(0, providers.length - a - b)
+                return h('div', { className: 'dsc-qualitybar' },
+                  h('i', { className: 'qa', style: { width: `${(a / providers.length) * 100}%` } }),
+                  h('i', { className: 'qb', style: { width: `${(b / providers.length) * 100}%` } }),
+                  h('i', { className: 'qc', style: { width: `${(c / providers.length) * 100}%` } }),
+                  h('span', null, `A ${a} · B ${b} · C ${c}`))
+              })()
+            : null,
           providers.length
             ? h('table', { className: 'dsc-table', style: { marginTop: '10px' } },
                 h('thead', null, h('tr', null, h('th', null, '名称'), h('th', null, '免费额度'), h('th', null, 'Base URL'))),
@@ -2632,7 +3237,13 @@ window.__ModuleLoader__.load({
                   h('td', null, String(p.free_quota || '').slice(0, 100)),
                   h('td', null, p.base_url || p.key_url || '')))))
             : h('div', { className: 'dsc-hint' }, '暂无侦察内容；点下方“开始侦察”。'),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, '完整候选和注册信息在下方卡片。')),
+          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, '完整候选和注册信息在下方卡片。'),
+          (cand.sources || []).length
+            ? h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, '侦察源：' + (cand.sources || []).slice(-6).map((s) => s.repo || s.url).join(' / '))
+            : null,
+          h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
+            h('button', { type: 'button', className: 'dsc-btn primary', onClick: onRadar }, '打开情报雷达'),
+            h('span', { className: 'dsc-hint' }, 'GitHub / B站 / 小黑盒 / HN 聚合）'))),
         h('section', { className: 'dsc-card' },
           h('h3', { className: 'dsc-sec-title' }, '模型来源（统一 API）', h('small', null, (prov && prov.version ? 'v' + prov.version : '可选'))),
           h('div', { className: 'dsc-chips' },
@@ -2676,97 +3287,35 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
             'IQ 限流会自动按 10/20/40 分钟退避重试，结果写回 registry。')),
         h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '素材 / GitHub', h('small', null, assets.updated || '')),
-          h('div', { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, '地图 ', h('b', null, String((assets.maps || []).length))),
-            h('span', { className: 'dsc-chip' }, 'tsx ', h('b', null, String((assets.tilesets || []).length))),
-            h('span', { className: 'dsc-chip' }, 'png ', h('b', null, String(assets.png_count || 0))),
-            h('span', { className: 'dsc-chip' }, '贴图集 ', h('b', null, String((assets.atlases || []).length)))),
-          h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
-            h('button', { type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy), onClick: () => act({ type: 'asset-index' }, '素材索引') }, '重建素材索引'),
-            h('button', { type: 'button', className: 'dsc-btn', disabled: Boolean(busy), onClick: () => act({ type: 'github-search' }, 'GitHub 地图') }, 'GitHub 地图'),
-            h('button', { type: 'button', className: 'dsc-btn', disabled: Boolean(busy), onClick: () => act({ type: 'github-mods' }, 'GitHub 模组') }, 'GitHub 模组'),
-            h('button', { type: 'button', className: 'dsc-btn', disabled: Boolean(busy), onClick: () => act({ type: 'self-check' }, '自检') }, '自检'),
-            h('span', { className: 'dsc-hint' }, '桌面 maps · tsx · 全地形.png'))),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '国内社区素材', h('small', null, community.updated || '')),
-          h('div', { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, '来源 ', h('b', null, community.source || 'rtsbox')),
-            h('span', { className: 'dsc-chip' }, '条目 ', h('b', null, String((community.items || []).length)))),
-          h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
-            h('button', { type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy), onClick: () => act({ type: 'community-scout' }, '社区素材抓取') }, '抓取并下载'),
-            h('span', { className: 'dsc-hint' }, '只抓公开下载链接')),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
-            (community.items || []).slice(0, 5).map((x) => x.title || x.page).join(' · ') || '还没有抓取')),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '电量 / 供电', h('small', null, power.checked_at || '')),
-          h('div', { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, '电量 ', h('b', null, power.percent == null ? '—' : `${power.percent}%`)),
-            h('span', { className: 'dsc-chip' }, '状态 ', h('b', null, power.charging ? '充电中' : power.on_battery ? '电池供电' : '—')),
-            h('span', { className: 'dsc-chip' }, '预计 ', h('b', null, power.projected_minutes ? `${power.projected_minutes} 分钟` : power.estimated_minutes ? `${power.estimated_minutes} 分钟` : '—')),
-            h('span', { className: 'dsc-chip' }, '放电 ', h('b', null, power.discharge_percent_per_hour ? `${power.discharge_percent_per_hour}%/h` : '—'))),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
-            '每天耗电按电池供电区间的电量下降累计；插电时不累计。'),
-          h('table', { className: 'dsc-table', style: { marginTop: '8px' } },
-            h('thead', null, h('tr', null, h('th', null, '日期'), h('th', null, '耗电'), h('th', null, '估算 Wh'), h('th', null, '放电分钟'), h('th', null, '采样'))),
-            h('tbody', null, Object.keys(powerDaily).sort().slice(-7).reverse().map((d) => {
-              const r = powerDaily[d] || {}
-              return h('tr', { key: d },
-                h('td', null, d),
-                h('td', null, `${r.used_percent || 0}%`),
-                h('td', null, String(r.estimated_wh || 0)),
-                h('td', null, String(r.discharge_minutes || 0)),
-                h('td', null, String(r.samples || 0)))
-            })))),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '内存保护', h('small', null, resource.checked_at || '')),
-          h('div', { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, '内存 ', h('b', null, resource.used_percent == null ? '—' : `${resource.used_percent}%`)),
-            h('span', { className: 'dsc-chip' }, '可用 ', h('b', null, resource.free_mb == null ? '—' : `${resource.free_mb} MB`)),
-            h('span', { className: 'dsc-chip' }, '保护 ', h('b', null, resource.action || '正常'))),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
-            resource.note || '内存过高时自动停止扩展对话和侦察任务，保留主插件任务。')),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '自动扩展', h('small', null, auto.updated || '')),
-          h('div', { className: 'dsc-chips' },
-            h('span', { className: 'dsc-chip' }, 'key ', h('b', null, String(auto.keys || 0))),
-            h('span', { className: 'dsc-chip' }, '槽位 ', h('b', null, `${auto.active_slots || 0} / ${auto.capacity_slots || 0}`)),
-            h('span', { className: 'dsc-chip' }, '空闲槽位 ', h('b', null, String(auto.idle_slots || 0))),
-            h('span', { className: 'dsc-chip' }, '空闲率 ', h('b', null, `${Math.round((auto.slot_ratio || 0) * 100)}%`))),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
-            (auto.actions || []).length ? '最近动作：' + auto.actions.join(' / ') : '空闲低于阈值，暂不扩展')),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '固定槽位调度', h('small', null, `${(sched.slots || []).length} 个槽位 · 队列 ${(sched.queues && Object.values(sched.queues).reduce((a, b) => a + b, 0)) || 0}`)),
-          h('div', { className: 'dsc-chips' },
-            (sched.slots || []).map((slot) => h('span', { key: slot.id, className: 'dsc-chip' },
-              slot.id, ' · ', (sched.type_labels || {})[slot.type] || slot.type))),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } }, sched.note || '')),
-        h('section', { className: 'dsc-card' },
           h('h3', { className: 'dsc-sec-title' }, '免费池侦察'),
           h('div', { className: 'dsc-hint' }, '空闲时让免费模型联网搜索可用的免费 AI 池；只产候选，不自动写入 key。'),
           h('div', { className: 'dsc-actions', style: { marginTop: '10px' } },
             h('button', { type: 'button', className: 'dsc-btn primary', disabled: Boolean(busy), onClick: () => act({ type: 'free-scout' }, '免费池侦察') }, '开始侦察'),
             h('span', { className: 'dsc-hint' }, cand.checked_at ? '上次：' + cand.checked_at : '还没侦察过'))),
         h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '候选提供方', h('small', null, providers.length + ' 个')),
-          providers.length
+          h('h3', { className: 'dsc-sec-title' }, '候选提供方', h('small', null, `${shownProviders.length} / ${providers.length} 个`)),
+          h('div', { className: 'dsc-actions', style: { marginBottom: '8px' } },
+            h('input', {
+              className: 'dsc-input', type: 'text', value: candq, placeholder: '筛选名称 / Base URL / 额度 / 来源',
+              onChange: (e) => setCandq(e.target.value), style: { flex: '1', minWidth: '240px' },
+            }),
+            candq ? h('button', { type: 'button', className: 'dsc-btn', onClick: () => setCandq('') }, '清空') : null),
+          h('div', { className: 'dsc-chips', style: { marginBottom: '8px' } },
+            ...[['all', '全部'], ['A', 'A 级'], ['B', 'B 级'], ['C', 'C 级']].map(([key, label]) => h('button', {
+              key, type: 'button', className: 'dsc-chip' + (qualityFilter === key ? ' on' : ''),
+              onClick: () => setQualityFilter(key),
+            }, label))),
+          shownProviders.length
             ? h('table', { className: 'dsc-table' },
-                h('thead', null, h('tr', null, h('th', null, '名称'), h('th', null, '免费额度'), h('th', null, 'Base URL'), h('th', null, '模型'), h('th', null, '来源'))),
-                h('tbody', null, providers.map((p, i) => h('tr', { key: i },
+                h('thead', null, h('tr', null, h('th', null, '名称'), h('th', null, '质量'), h('th', null, '免费额度'), h('th', null, 'Base URL'), h('th', null, '模型'), h('th', null, '来源'))),
+                h('tbody', null, shownProviders.map((p, i) => h('tr', { key: i },
                   h('td', null, p.name || ''),
+                  h('td', null, p.quality ? h('span', { className: 'dsc-state' }, p.quality + ' · ' + (p.quality_score || 0)) : '—'),
                   h('td', null, p.free_quota || ''),
                   h('td', null, p.base_url || ''),
                   h('td', null, String(p.models || '')),
                   h('td', null, p.source_url ? h('a', { href: p.source_url, target: '_blank', rel: 'noreferrer' }, '来源') : '')))))
-            : h('div', { className: 'dsc-hint' }, '暂无候选，点“开始侦察”。')),
-        h('section', { className: 'dsc-card' },
-          h('h3', { className: 'dsc-sec-title' }, '中小任务分流（插件外）', h('small', null, '固定会话，不占插件槽位')),
-          h('div', { className: 'dsc-chips' },
-            ['问答/理解', '小脚本', '文档/翻译', '分析/整理'].map((k) => h('span', { key: k, className: 'dsc-chip' }, k))),
-          h('div', { className: 'dsc-hint', style: { marginTop: '6px' } },
-            (snap.pipeline && snap.pipeline.hasDlc)
-              ? '只接不需要完整插件流程的中小任务；插件任务仍走代码/地图/贴图/平衡槽位。'
-              : '当前未安装模组插件：这里只接中小任务；安装后才会出现代码/地图/贴图/平衡槽位。')),
+            : h('div', { className: 'dsc-hint' }, providers.length ? '筛选没有结果。' : '暂无候选，点“开始侦察”。')),
       )
     }
 

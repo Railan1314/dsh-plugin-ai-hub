@@ -4,33 +4,219 @@
   "auth": "local-only",
   "description": "AI Console 本机统一接口；QQ 机器人、插件和 agent 共用。",
   "endpoints": [
-    {"method": "GET", "path": "/status", "description": "完整状态：任务、并发、模型、Token、jobs"},
-    {"method": "GET", "path": "/progress", "description": "QQ bot 用的一体化进度：DSH 会话、任务、jobs、总指挥"},
-    {"method": "GET", "path": "/progress/text", "description": "纯文本进度摘要；可带 id 查单会话，QQ bot 可直接推送"},
-    {"method": "GET", "path": "/progress/session?id=", "description": "按会话 ID 查详细进度：轮次/步骤/上下文/token/最近一轮"},
-    {"method": "GET", "path": "/health", "description": "健康守护状态、免费模型巡检、job 状态计数"},
-    {"method": "GET", "path": "/tasks", "description": "任务列表与控制动作"},
-    {"method": "POST", "path": "/tasks", "body": {"id": "desc|map|art|balance", "op": "start|stop|restart"}, "description": "任务控制"},
-    {"method": "GET", "path": "/jobs", "description": "异步任务列表，支持 state 过滤"},
-    {"method": "GET", "path": "/jobs/:id", "description": "单个异步任务详情，含结果和错误"},
-    {"method": "GET", "path": "/queue", "description": "主动调度队列，可用 state 过滤（queued/dispatched/done）"},
-    {"method": "GET", "path": "/logs?lines=", "description": "最近的 job/事件日志，供排查停工"},
-    {"method": "POST", "path": "/jobs", "body": {"type": "opencode|free|external", "title": "", "prompt": "", "model": "", "account": "", "keyName": "", "idempotencyKey": ""}, "description": "创建异步任务"},
-    {"method": "POST", "path": "/event", "body": {"jobId": "", "state": "succeeded|failed|stale", "result": ""}, "description": "完成事件回写"},
-    {"method": "POST", "path": "/jobs/:id/cancel", "description": "取消异步任务"},
-    {"method": "POST", "path": "/inject", "body": {"sessionId": "", "text": ""}, "description": "向会话投递消息"},
-    {"method": "GET", "path": "/commander", "description": "总指挥目标、任务卡和报告列表"},
-    {"method": "POST", "path": "/commander/goal", "body": {"goal": ""}, "description": "创建一个总指挥目标，后台拆解"},
-    {"method": "GET", "path": "/commander/report?name=", "description": "读取总指挥报告正文"},
-    {"method": "GET", "path": "/opencode/free-models", "description": "本机 OpenCode 客户端可用免费模型（去重）"},
-    {"method": "GET", "path": "/model-eval", "description": "扩展模型评测结果：鹈鹕/逻辑/JSON/长上下文/代码/工具诚实度"},
-    {"method": "POST", "path": "/model-eval/run", "body": {"model": "", "baseUrl": "", "key": "", "provider": ""}, "description": "后台运行一次扩展评测，结果写 model-eval"},
-    {"method": "GET", "path": "/registration", "description": "免费模型注册入口和探测字段；只读，不自动提交"},
-    {"method": "GET", "path": "/a2a/agent-card", "description": "A2A agent card，供其他 agent 发现能力"},
-    {"method": "GET", "path": "/route?role=", "description": "按角色返回推荐模型和候选；供外部 agent 复用路由"},
-    {"method": "GET", "path": "/providers", "description": "统一 provider/model 来源"},
-    {"method": "GET", "path": "/free-models", "description": "免费模型登记，q 搜索"},
-    {"method": "GET", "path": "/local-search?q=", "description": "本地资料检索，优先命中缓存，减少联网"},
-    {"method": "GET", "path": "/xdpool", "description": "XD Pool 伴侣只读状态"}
+    {
+      "method": "GET",
+      "path": "/status",
+      "description": "完整状态：任务、并发、模型、Token、jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/progress",
+      "description": "QQ bot 用的一体化进度：DSH 会话、任务、jobs、总指挥"
+    },
+    {
+      "method": "GET",
+      "path": "/progress/text",
+      "description": "纯文本进度摘要；可带 id 查单会话，QQ bot 可直接推送"
+    },
+    {
+      "method": "GET",
+      "path": "/progress/session?id=",
+      "description": "按会话 ID 查详细进度：轮次/步骤/上下文/token/最近一轮"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "description": "健康守护状态、免费模型巡检、job 状态计数"
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "description": "任务列表与控制动作"
+    },
+    {
+      "method": "POST",
+      "path": "/tasks",
+      "body": {
+        "id": "desc|map|art|balance",
+        "op": "start|stop|restart"
+      },
+      "description": "任务控制"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs",
+      "description": "异步任务列表，支持 state 过滤"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs/:id",
+      "description": "单个异步任务详情，含结果和错误"
+    },
+    {
+      "method": "GET",
+      "path": "/queue",
+      "description": "主动调度队列，可用 state 过滤（queued/dispatched/done）"
+    },
+    {
+      "method": "GET",
+      "path": "/logs?lines=",
+      "description": "最近的 job/事件日志，供排查停工"
+    },
+    {
+      "method": "POST",
+      "path": "/jobs",
+      "body": {
+        "type": "opencode|free|external",
+        "title": "",
+        "prompt": "",
+        "model": "",
+        "account": "",
+        "keyName": "",
+        "idempotencyKey": ""
+      },
+      "description": "创建异步任务"
+    },
+    {
+      "method": "POST",
+      "path": "/event",
+      "body": {
+        "jobId": "",
+        "state": "succeeded|failed|stale",
+        "result": ""
+      },
+      "description": "完成事件回写"
+    },
+    {
+      "method": "POST",
+      "path": "/jobs/:id/cancel",
+      "description": "取消异步任务"
+    },
+    {
+      "method": "POST",
+      "path": "/inject",
+      "body": {
+        "sessionId": "",
+        "text": ""
+      },
+      "description": "向会话投递消息"
+    },
+    {
+      "method": "GET",
+      "path": "/commander",
+      "description": "总指挥目标、任务卡和报告列表"
+    },
+    {
+      "method": "POST",
+      "path": "/commander/goal",
+      "body": {
+        "goal": ""
+      },
+      "description": "创建一个总指挥目标，后台拆解"
+    },
+    {
+      "method": "GET",
+      "path": "/commander/report?name=",
+      "description": "读取总指挥报告正文"
+    },
+    {
+      "method": "GET",
+      "path": "/opencode/free-models",
+      "description": "本机 OpenCode 客户端可用免费模型（去重）"
+    },
+    {
+      "method": "GET",
+      "path": "/model-eval",
+      "description": "扩展模型评测结果：鹈鹕/逻辑/JSON/长上下文/代码/工具诚实度"
+    },
+    {
+      "method": "POST",
+      "path": "/model-eval/run",
+      "body": {
+        "model": "",
+        "baseUrl": "",
+        "key": "",
+        "provider": ""
+      },
+      "description": "后台运行一次扩展评测，结果写 model-eval"
+    },
+    {
+      "method": "GET",
+      "path": "/registration",
+      "description": "免费模型注册入口和探测字段；只读，不自动提交"
+    },
+    {
+      "method": "GET",
+      "path": "/a2a/agent-card",
+      "description": "A2A agent card，供其他 agent 发现能力"
+    },
+    {
+      "method": "GET",
+      "path": "/radar?q=&limit=&hot=",
+      "description": "社区情报雷达：GitHub / B站搜索与排行 / Hacker News / 小黑盒 / 小米社区热议；支持 hot=1 热门榜，15 分钟缓存"
+    },
+    {
+      "method": "GET",
+      "path": "/route?role=",
+      "description": "按角色返回推荐模型和候选；供外部 agent 复用路由"
+    },
+    {
+      "method": "GET",
+      "path": "/providers",
+      "description": "统一 provider/model 来源"
+    },
+    {
+      "method": "GET",
+      "path": "/free-models",
+      "description": "免费模型登记，q 搜索"
+    },
+    {
+      "method": "GET",
+      "path": "/local-search?q=",
+      "description": "本地资料检索，优先命中缓存，减少联网"
+    },
+    {
+      "method": "GET",
+      "path": "/xdpool",
+      "description": "XD Pool 伴侣只读状态"
+    },
+    {
+      "method": "POST",
+      "path": "/radar/import",
+      "body": {
+        "url": "",
+        "title": "",
+        "source": ""
+      },
+      "description": "把情报雷达结果加入免费池侦察源，去重；不自动写 key"
+    },
+    {
+      "method": "POST",
+      "path": "/model-eval/probe",
+      "body": {
+        "model": "",
+        "baseUrl": "",
+        "key": ""
+      },
+      "description": "单次延时/token 探测：发一条最小请求，返回 latency_ms 和 usage"
+    },
+    {
+      "method": "GET",
+      "path": "/workbuddy",
+      "description": "原生 WorkBuddy 账号/积分：读取本地 accounts.json，直连 WorkBuddy billing，不打印 token"
+    },
+    {
+      "method": "GET/POST",
+      "path": "/free-gateway",
+      "description": "统一免费入口原型：127.0.0.1:8810/v1，一把 key free-pool，转发 OpenCode 8799 与 XD Pool 8327"
+    },
+    {
+      "method": "POST",
+      "path": "/session/interrupt",
+      "body": {
+        "sessionId": ""
+      },
+      "description": "尝试打断正在运行的 DSH 会话（复用 agents 会话对象，不新建采集）"
+    }
   ]
 }
