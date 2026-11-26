@@ -14,3 +14,9 @@ tools/*lock*
 参考/
 exports/
 *.bak-textopt-*
+*.bak
+*.bak_*
+*.bak-*
+dist/
+.release/
+

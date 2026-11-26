@@ -70,6 +70,32 @@ dsh-plugin-ai-hub/
 4. 再提交市场索引
 5. issue 模板要求附 `self_check.json`，不要附 key
 
+## 7. 下一个版本的变更草稿（未发布，勿外发）
+
+> 版本号待定（建议 2.9.9 小修 或 3.0.0 含新能力）。发布前需按 `docs\release-checklist.md` 走。
+
+**新增能力**
+- 会话雷达：控制台卡片 + DSH 右侧面板入口（`sidebarRightTabs` / `sidebar.right.pane.tab` / 开始页「更多」菜单），点击原地切会话
+- MCP 层：`aihub_mcp_server.py` 改为纯 HTTP 壳，工具 13 → 17（新增 session_radar / start / stop_pipeline / quota），支持 `--stdio` 与 `--sse --port 8790`，SSE 一次性 token
+- API：新增 `GET /api/quota`、`GET /api/tool-stats`、`GET /api/token-curve`
+- 429 熔断器 `tools/circuit_breaker.py`（默认关闭，`pipeline_config.json → circuit_breaker.enabled` 开启）
+- 总指挥 LLM 拆解 `tools/commander_llm.py` + 自动验收 `tools/verify_acceptance.py`（含陈旧产物判定）
+- 工具统计 `tools/tool_stats.mjs`、平衡变化摘要 `tools/balance_rank_summary.py`
+
+**修复**
+- 桥接进程风暴（端口单实例锁 + manager 退避 + 插件 spawn 节流）
+- 浏览器搜索乱码/查询丢失（`--query` + 编码探测）
+- 流水线 paid 阶段静默失败（cmd.exe stdin + UTF-8 中文 → 改 PowerShell 管道）
+- GBK 配置解码崩溃（`read_text_any`）
+- 结束通知迟到/标题乱码、running 误判、key 数量口径（此前版本已修）
+
+**资源清理**
+- [ ] `~/.dsh/aihub-mcp-token`
+- [ ] `tools\dsh_failure_debug.log`、`tools\paid_result_watch.json`、`tools\commander_plans\`
+- [ ] `tools\commander_reports\` 中个人试验报告
+- [ ] `tools\opencode_bridge_*.lock`、`opencode_bridge_state.json`
+- [ ] `*.bak_*` 备份文件
+
 ## 6. 关于“被嘲笑”
 
 公开项目被看的是：

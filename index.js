@@ -399,6 +399,9 @@ function createConsole(ctx) {
     const total = Number(config?.free?.total_files) || 618
     const checked = Number.isFinite(Number(status.checked)) ? Number(status.checked) : 0
     const workflow = readJson(join(relay, 'parallel_workflow_status.json'), {})
+    const parLive = readJson(join(freeRelayDir(), 'par', 'live.json'), {})
+    const parFresh = parLive && Date.now() / 1000 - (Number(parLive.updated) || 0) < 120
+    const parallelActive = parFresh ? Math.max(0, Number(parLive.active) || 0) : 0
     const hasDlc = (() => {
       try {
         return Boolean(globalThis.__AI_HUB__ && typeof globalThis.__AI_HUB__.listTasks === 'function' && globalThis.__AI_HUB__.listTasks().length)
@@ -434,6 +437,7 @@ function createConsole(ctx) {
         round: Number.isFinite(Number(status.round)) ? Number(status.round) : 0,
         checked,
         total,
+        workers: parallelActive,
         hasDlc,
         workflow: {
           stage: typeof workflow.stage === 'string' ? workflow.stage : '',
@@ -456,6 +460,7 @@ function createConsole(ctx) {
             name: '描述/代码',
             state: running ? 'running' : stopFlag() ? 'stopped' : 'idle',
             pid: lock.pid || childPid || null,
+            workers: running ? Math.max(1, parallelActive) : 0,
             detail: '',
           },
           artTask(),
@@ -561,17 +566,15 @@ function createConsole(ctx) {
         const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
         const plan = readJson(join(root, 'tools', 'ai_plan.json'), {})
         const quotas = plan.quotas || {}
-        const amdKeys = Object.keys(cfg.amd_api_keys || {})
-        const extraNames = Object.keys(cfg.extra_api_keys || {})
-        const opencodeNames = extraNames.filter((k) => /opencode|OPENCODE/i.test(k)).slice(0, 4)
-        const otherExtra = extraNames.filter((k) => !/opencode|OPENCODE/i.test(k))
-        const names = [...amdKeys, ...otherExtra, ...opencodeNames]
-        const accounts = names.length
+        const inventory = channelInventory(cfg)
+        const amdKeys = inventory.amd
+        const opencodeNames = inventory.opencode
+        const workbuddyLabels = inventory.workbuddyLabels
+        const names = inventory.names
+        const accounts = inventory.total
         const models = (cfg.models || []).length
         const perCombo = 4
         const poolMax = accounts * models * perCombo
-        // The old plan file was generated with 7 accounts and is stale; the
-        // live matrix (13 AMD + 4 active OpenCode bridges) is authoritative.
         const theory = poolMax
         const keyStatus = (() => {
           const overrides = readJson(join(root, 'tools', 'free_key_status.json'), {})
@@ -585,8 +588,11 @@ function createConsole(ctx) {
           const out = {}
           for (const name of names) {
             const rawLabel = /^AMD/i.test(name) ? `amd${amdKeys.indexOf(name) + 1}` : (() => {
-              const idx = opencodeNames.indexOf(name)
-              return idx >= 0 ? `opencode${idx + 1}` : ''
+              const oi = opencodeNames.indexOf(name)
+              if (oi >= 0) return `opencode${oi + 1}`
+              const wi = workbuddyLabels.indexOf(name)
+              if (wi >= 0) return `workbuddy${wi + 1}`
+              return ''
             })()
             const override = overrides[name] || (rawLabel ? overrides[rawLabel] : null)
             if (override && typeof override === 'object') {
@@ -646,15 +652,19 @@ function createConsole(ctx) {
         const codeRoles = Array.isArray(roleCfg.code) ? roleCfg.code : []
         const configuredVendors = cfg.key_providers || {}
         const vendorOf = (k) => {
-          if (configuredVendors[k]) return String(configuredVendors[k])
+          const configured = configuredVendors[k] ? String(configuredVendors[k]) : ''
+          if (/opencode/i.test(configured)) return 'OpenCode'
+          if (/workbuddy/i.test(configured)) return 'WorkBuddy'
+          if (configured) return configured
           const s = String(k).toUpperCase()
           if (s.includes('WORKBUDDY') || s.includes('WORK_BUDDY')) return 'WorkBuddy'
+          if (s.includes('OPENCODE')) return 'OpenCode'
           if (s.includes('HUAWEI') || s.includes('HARMONY')) return '华为果办'
           return 'AMD'
         }
         const accountsDetail = names.map((k, i) => {
-          const providerId = i === 0 ? 'amd' : `amd-${i + 1}`
           const vendor = vendorOf(k)
+          const providerId = vendor === 'AMD' ? (i === 0 ? 'amd' : `amd-${i + 1}`) : vendor.toLowerCase().replace(/[^a-z0-9]/g, '')
           const vendorIndex = names.slice(0, i).filter((x) => vendorOf(x) === vendor).length + 1
           const label = vendor === 'AMD' ? `amd${i + 1}` : `${vendor.toLowerCase().replace(/[^a-z0-9]/g, '') || 'key'}${vendorIndex}`
           const tasks = []
@@ -749,12 +759,15 @@ function createConsole(ctx) {
           if (used === 0) addCell(names[names.length - 1], '扩展/其他', actual.flex)
         }
         const extraMatrixNames = Object.keys(cfg.extra_api_keys || {})
-        const matrixModels = [...new Set([...modelIds, ...(extraMatrixNames.length ? ['DeepSeek-V4.1'] : [])])]
+        const matrixModels = [...new Set([...modelIds, ...(extraMatrixNames.length ? ['DeepSeek-V4.1'] : []), ...(inventory.workbuddy ? ['buddy:auto'] : [])])]
         const providerGroups = []
         for (const a of accountsDetail) {
           let group = providerGroups.find((x) => x.name === a.provider)
           if (!group) {
-            group = { name: a.provider, models: a.provider === 'AMD' ? modelIds : ['DeepSeek-V4.1'] }
+            group = {
+              name: a.provider,
+              models: a.provider === 'AMD' ? modelIds : a.provider === 'WorkBuddy' ? ['buddy:auto'] : ['DeepSeek-V4.1'],
+            }
             providerGroups.push(group)
           }
         }
@@ -770,6 +783,9 @@ function createConsole(ctx) {
           accounts,
           amdAccounts: amdKeys.length,
           opencodeAccounts: opencodeNames.length,
+          workbuddyAccounts: workbuddyLabels.length,
+          providers: inventory.providers,
+          channels: { amd: amdKeys.length, opencode: opencodeNames.length, workbuddy: workbuddyLabels.length },
           poolMax,
           theory,
           actualTotal: items.reduce((a, b) => a + b.actual, 0),
@@ -1301,16 +1317,60 @@ function createConsole(ctx) {
     return ledger
   }
 
+  function workbuddyAccountCount() {
+    const dirs = [
+      join(process.env.USERPROFILE || '', '.dsh', '.xdpool', 'accounts.json'),
+      join(process.env.USERPROFILE || '', '.dsh', '.workbuddy-xdpool', 'accounts.json'),
+    ]
+    for (const file of dirs) {
+      try {
+        const data = readJson(file, {})
+        const accounts = Array.isArray(data.accounts) ? data.accounts : []
+        if (accounts.length) return accounts.length
+      } catch {
+        /* try next */
+      }
+    }
+    return 0
+  }
+
+  /**
+   * 唯一通道清单：AMD / OpenCode / WorkBuddy。
+   * 数量由三个真实来源动态计算，禁止在 quota、并发矩阵里各写一份。
+   */
+  function channelInventory(cfg = null) {
+    const config = cfg || readJson(join(root, 'tools', 'dsh_config.json'), {})
+    const amd = Object.keys(config.amd_api_keys || {})
+    const opencode = Object.keys(config.extra_api_keys || {}).filter((k) => /^OPENCODE_API_KEY(?:_\d+)?$/i.test(String(k)))
+    const workbuddy = workbuddyAccountCount()
+    const workbuddyLabels = Array.from({ length: workbuddy }, (_, i) => `workbuddy${i + 1}`)
+    const names = [...amd, ...opencode, ...workbuddyLabels]
+    const providers = [amd.length, opencode.length, workbuddy].filter((n) => n > 0).length
+    return { amd, opencode, workbuddy, workbuddyLabels, names, total: names.length, providers }
+  }
+
   function quotaInfo() {
-    if (quotaCacheValue && Date.now() - quotaCacheAt < 60000) return quotaCacheValue
+    const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
+    const inventory = channelInventory(cfg)
+    if (quotaCacheValue && Date.now() - quotaCacheAt < 60000) {
+      quotaCacheValue.keys = inventory.total
+      quotaCacheValue.providers = inventory.providers
+      quotaCacheValue.channels = { amd: inventory.amd.length, opencode: inventory.opencode.length, workbuddy: inventory.workbuddy }
+      writeJson(join(root, 'tools', 'quota_cache.json'), quotaCacheValue)
+      return quotaCacheValue
+    }
     if (!quotaCacheValue) {
       try {
         const qPath = join(root, 'tools', 'quota_cache.json')
         if (Date.now() - statSync(qPath).mtimeMs < 300000) {
           const q = readJson(qPath, null)
           if (q && Number.isFinite(Number(q.keys))) {
+            q.keys = inventory.total
+            q.providers = inventory.providers
+            q.channels = { amd: inventory.amd.length, opencode: inventory.opencode.length, workbuddy: inventory.workbuddy }
             quotaCacheValue = q
             quotaCacheAt = Date.now()
+            writeJson(qPath, q)
             return q
           }
         }
@@ -1318,9 +1378,8 @@ function createConsole(ctx) {
         /* no disk cache */
       }
     }
-    const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
-    const keys = Object.keys(cfg.amd_api_keys || {})
-    const providers = Array.isArray(cfg.amd_providers) ? cfg.amd_providers : []
+    const keys = inventory.names
+    const providerCount = inventory.providers
     const now = new Date()
     const pad = (n) => String(n).padStart(2, '0')
     const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
@@ -1412,12 +1471,14 @@ function createConsole(ctx) {
       cumulative: tokensTotal,
       baseline,
       keys: keys.length,
-      providers: providers.length,
+      providers: providerCount,
+      channels: { amd: inventory.amd.length, opencode: inventory.opencode.length, workbuddy: inventory.workbuddy },
     }
     writeJson(join(root, 'tools', 'token_usage.json'), usage)
     quotaCacheValue = {
       keys: keys.length,
-      providers: providers.length,
+      providers: providerCount,
+      channels: { amd: inventory.amd.length, opencode: inventory.opencode.length, workbuddy: inventory.workbuddy },
       sessions,
       tokens,
       tokensTotal,
@@ -1973,11 +2034,7 @@ function createConsole(ctx) {
       probe = { ok: false, mode: 'direct', reason: String((error && error.message) || error).slice(0, 200) }
     }
     if (probe && probe.mode === 'bridge' && String(vendor).toLowerCase().includes('opencode')) {
-      try {
-        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'opencode_bridge.py'), '--port', '8799'], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true }).unref()
-      } catch {
-        /* bridge may already be running */
-      }
+      ensureBridgeOnce('addApiKey')
       registered = ensureDshProvider(vendor, name, key, 'http://127.0.0.1:8799/v1', String(model || 'deepseek-v4.1-flash-free'), true)
       if (registered.ok) registered.note = '直连被限流，已注册本地 OpenCode 桥接；重启 DSH 后可选'
     } else {
@@ -2287,7 +2344,8 @@ function createConsole(ctx) {
   function autoAllocate() {
     const plan = readJson(join(root, 'tools', 'ai_plan.json'), {})
     const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
-    const keys = Object.keys(cfg.amd_api_keys || {}).length
+    const inventory = channelInventory(cfg)
+    const keys = inventory.total
     const models = (cfg.models || []).length || 4
     const perCombo = Number(cfg.per_combo_concurrency) || 4
     const poolMax = keys * models * perCombo
@@ -3068,6 +3126,152 @@ function createConsole(ctx) {
     return sessionActivity(id, lastWriteMs, activeTurn).running
   }
 
+  const SESSION_EVENTS_FILE = join(root, 'tools', 'session_events.jsonl')
+  const SESSION_RUNNING_STATE = join(root, 'tools', 'session_running_state.json')
+  const SESSION_END_GRACE_MS = 15 * 60 * 1000
+  let sessionEventSeen = null
+  let sessionPrevRunning = null
+
+  function cleanSessionTitle(value) {
+    return String(value || '')
+      .replace(/^\uFEFF/, '')
+      .replace(/\uFFFD/g, '')
+      .trim()
+  }
+
+  function loadSessionEventSeen() {
+    const seen = new Set()
+    try {
+      for (const line of readFileSync(SESSION_EVENTS_FILE, 'utf8').split(/\r?\n/)) {
+        if (!line.trim()) continue
+        try {
+          const row = JSON.parse(line)
+          if (row && row.sessionId) seen.add(`${row.sessionId}:${Number(row.turn) || 0}`)
+        } catch {
+          /* skip bad line */
+        }
+      }
+    } catch {
+      /* no events yet */
+    }
+    return seen
+  }
+
+  function readRecentSessionEvents(limit = 8) {
+    const rows = []
+    try {
+      for (const line of readFileSync(SESSION_EVENTS_FILE, 'utf8').split(/\r?\n/)) {
+        if (!line.trim()) continue
+        try {
+          const row = JSON.parse(line)
+          if (row && row.sessionId) rows.push(row)
+        } catch {
+          /* skip */
+        }
+      }
+    } catch {
+      /* no events */
+    }
+    return rows.slice(-Math.max(1, limit)).reverse()
+  }
+
+  function emitSessionEnded(session, reason) {
+    const id = String(session.sessionId || '')
+    const turn = Number(session.turns) || 0
+    const key = `${id}:${turn}`
+    if (!id || (sessionEventSeen && sessionEventSeen.has(key))) return false
+    const lastActiveMs = session.lastActive ? Date.parse(session.lastActive) : NaN
+    const age = Number.isFinite(lastActiveMs) ? Date.now() - lastActiveMs : Number.POSITIVE_INFINITY
+    const late = age > SESSION_END_GRACE_MS
+    const endedAtMs = Number.isFinite(lastActiveMs) && reason === 'idle10m'
+      ? lastActiveMs + 10 * 60 * 1000
+      : Date.now()
+    const row = {
+      at: nowText(),
+      detectedAt: nowText(),
+      endedAt: new Date(endedAtMs).toISOString(),
+      type: 'session-end',
+      sessionId: id,
+      title: cleanSessionTitle(session.title) || id,
+      workspace: session.workspace || '',
+      turn,
+      turns: turn,
+      lastActive: session.lastActive || null,
+      contextPct: Number(session.contextPct) || 0,
+      reason,
+      late,
+      notified: !late,
+    }
+    try {
+      mkdirSync(dirname(SESSION_EVENTS_FILE), { recursive: true })
+      appendFileSync(SESSION_EVENTS_FILE, JSON.stringify(row) + '\n', 'utf8')
+    } catch (error) {
+      log(`会话结束事件写入失败：${String((error && error.message) || error)}`)
+      return false
+    }
+    if (!sessionEventSeen) sessionEventSeen = new Set()
+    sessionEventSeen.add(key)
+    if (!late) {
+      qqSendC2C(`会话结束：${row.title}\n最后写入：${row.lastActive || '未知'}\n轮次：${row.turn}\nctx：${row.contextPct}%`)
+    } else {
+      log(`会话结束事件迟到 ${Math.round(age / 60000)} 分钟，不推送：${row.title}`)
+    }
+    log(`会话结束事件：${row.title}（turn ${row.turn}，${reason}，late=${late}）`)
+    return true
+  }
+
+  function startSessionWatch() {
+    sessionEventSeen = loadSessionEventSeen()
+    sessionPrevRunning = new Map()
+    let restored = false
+    try {
+      const stateFile = readJson(SESSION_RUNNING_STATE, {})
+      const rows = Array.isArray(stateFile.running) ? stateFile.running : []
+      for (const row of rows) {
+        if (row && row.sessionId) sessionPrevRunning.set(String(row.sessionId), { turn: Number(row.turn) || 0 })
+      }
+      restored = rows.length > 0
+    } catch {
+      restored = false
+    }
+    let seeded = restored
+    const poll = () => {
+      try {
+        const sessions = listSessions()
+        if (!seeded) {
+          // First run after a fresh install: seed currently-running sessions.
+          // Existing idle history must not be notified as "just ended".
+          for (const session of sessions) {
+            if (session.running) sessionPrevRunning.set(String(session.sessionId), { turn: Number(session.turns) || 0 })
+          }
+          seeded = true
+        } else {
+          for (const session of sessions) {
+            const id = String(session.sessionId || '')
+            if (!id) continue
+            const turn = Number(session.turns) || 0
+            const age = session.lastActive ? Date.now() - Date.parse(session.lastActive) : Number.POSITIVE_INFINITY
+            const wasRunning = sessionPrevRunning.has(id)
+            const endedByAge = age > 10 * 60 * 1000
+            if (wasRunning && (!session.running || endedByAge)) {
+              emitSessionEnded(session, endedByAge ? 'idle10m' : session.stale ? 'stale' : 'stopped')
+            }
+          }
+        }
+        const runningRows = sessions
+          .filter((session) => session.running)
+          .map((session) => ({ sessionId: session.sessionId, turn: Number(session.turns) || 0, lastActive: session.lastActive || null }))
+        writeJson(SESSION_RUNNING_STATE, { updated: nowText(), running: runningRows })
+        sessionPrevRunning = new Map(runningRows.map((row) => [String(row.sessionId), { turn: row.turn }]))
+      } catch (error) {
+        log(`会话结束监听失败：${String((error && error.message) || error)}`)
+      }
+    }
+    poll()
+    const timer = setInterval(poll, 15000)
+    return () => clearInterval(timer)
+  }
+
   function collectSessions(rootDir, archived) {
     const items = []
     let workspaces = []
@@ -3751,10 +3955,10 @@ function createConsole(ctx) {
       const query = String((payload && payload.query) || '').trim()
       if (!query) return { ok: false, message: '需要 query' }
       try {
-        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'browser_search.py'), query], {
+        spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'browser_search.py'), '--query', query], {
           cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
         }).unref()
-        return { ok: true, message: '浏览器搜索已启动', output: join(root, 'tools', '浏览器搜索.md') }
+        return { ok: true, query, message: '浏览器搜索已启动', output: join(root, 'tools', '浏览器搜索.md') }
       } catch (e) {
         return { ok: false, message: String(e && e.message ? e.message : e) }
       }
@@ -4415,6 +4619,62 @@ function createConsole(ctx) {
       }
       return
     }
+    // M2-11：额度只读路由（按供应商），供 MCP 的 aihub_quota 与外部总控使用。
+    if (req.method === 'GET' && (route === 'api/quota' || route === 'quota')) {
+      try {
+        const status = await withBotPids()
+        const quota = status.quota || {}
+        const concurrency = status.concurrency || {}
+        const channels = quota.channels || {}
+        const keyStatus = concurrency.keyStatus || {}
+        const states = { available: 0, limited: 0, cooling: 0, other: 0 }
+        for (const info of Object.values(keyStatus)) {
+          const state = String((info && info.state) || 'available')
+          if (state in states) states[state] += 1
+          else states.other += 1
+        }
+        sendJson(res, 200, {
+          ok: true,
+          at: status.now || nowText(),
+          keys: Number(quota.keys) || 0,
+          providers: Number(quota.providers) || 0,
+          poolMax: Number(concurrency.poolMax) || 0,
+          channels: Object.entries(channels).map(([provider, keys]) => ({ provider, keys })),
+          states,
+        })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, code: 'E_QUOTA', message: String((error && error.message) || error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/tool-stats' || route === 'tool-stats')) {
+      try {
+        const days = Math.min(30, Math.max(1, Number(url.searchParams.get('days')) || 7))
+        const out = execFileSync(process.execPath, [join(root, 'tools', 'tool_stats.mjs'), '--days', String(days)], {
+          cwd: root, encoding: 'utf8', timeout: 180000, windowsHide: true,
+        })
+        const raw = String(out || '').trim()
+        const start = raw.indexOf('{')
+        sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, code: 'E_TOOL_STATS', message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
+    if (req.method === 'GET' && (route === 'api/token-curve' || route === 'token-curve')) {
+      try {
+        const days = Math.min(30, Math.max(1, Number(url.searchParams.get('days')) || 7))
+        const out = execFileSync(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'token_curve.py'), '--days', String(days)], {
+          cwd: root, encoding: 'utf8', timeout: 30000, windowsHide: true,
+        })
+        const raw = String(out || '').trim()
+        const start = raw.indexOf('{')
+        sendJson(res, 200, JSON.parse(raw.slice(start >= 0 ? start : 0)))
+      } catch (error) {
+        sendJson(res, 500, { ok: false, code: 'E_TOKEN_CURVE', message: String((error && error.message) || error).slice(0, 300) })
+      }
+      return
+    }
     if (req.method === 'POST' && (route === 'api/tool' || route === 'tool')) {
       try {
         const payload = await readBody(req)
@@ -4553,7 +4813,7 @@ function createConsole(ctx) {
     }
     if (req.method === 'GET' && route === 'api/sessions') {
       try {
-        sendJson(res, 200, { ok: true, sessions: listSessions() })
+        sendJson(res, 200, { ok: true, sessions: listSessions(), recentEnded: readRecentSessionEvents(8) })
       } catch (error) {
         sendJson(res, 500, { ok: false, message: `列会话失败：${String((error && error.message) || error)}` })
       }
@@ -4834,6 +5094,23 @@ function createConsole(ctx) {
     )
   }
 
+  // 桥接进程只允许一个实例：60 秒节流 + 桥接自身端口锁兜底，避免插件每次 install 都拉一串。
+  function ensureBridgeOnce(reason = '') {
+    const now = Date.now()
+    if (now - (state.bridgeSpawnAt || 0) < 60000) return false
+    state.bridgeSpawnAt = now
+    try {
+      spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'opencode_bridge.py'), '--port', '8799'], {
+        cwd: root, windowsHide: true, stdio: 'ignore', detached: true,
+      }).unref()
+      log(`桥接实例检查（${reason || 'install'}）`)
+      return true
+    } catch (error) {
+      log(`桥接拉起失败：${String((error && error.message) || error)}`)
+      return false
+    }
+  }
+
   function migrateExtraProviders() {
     const cfg = readJson(join(root, 'tools', 'dsh_config.json'), {})
     const providers = cfg.key_providers || {}
@@ -4841,11 +5118,7 @@ function createConsole(ctx) {
       if (!key) continue
       const vendor = String(providers[name] || name.replace(/_API_KEY.*$/, '') || 'custom')
       if (vendor.toLowerCase().includes('opencode')) {
-        try {
-          spawn(settings.python || 'python', ['-X', 'utf8', join(root, 'tools', 'opencode_bridge.py'), '--port', '8799'], { cwd: root, windowsHide: true, stdio: 'ignore', detached: true }).unref()
-        } catch {
-          /* bridge may already be running */
-        }
+        ensureBridgeOnce('migrate')
       }
       try {
         const out = ensureDshProvider(vendor, name, key, '', '')
@@ -4901,6 +5174,8 @@ function createConsole(ctx) {
         state.child = null
       }
     }, 'ds-console: supervisor')
+
+    ctx.effect(() => startSessionWatch(), 'ds-console: session events')
 
     log('守护台插件已加载（自动守护默认关闭）。')
     tick()

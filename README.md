@@ -1,184 +1,60 @@
-# AI Console / AI 调度台
+# AI 调度台（dsh-plugin-ai-hub）
 
-![AI Console dashboard](docs/screenshot-dashboard.png)
+DSH 的左栏调度插件：把本机的模组流水线、地图、贴图、平衡、免费池、QQbot 和本机工具集中到一个面板里。
 
-A DSH desktop plugin that puts task scheduling, concurrency, free-pool discovery, local tools and the optional mod console into one left-sidebar panel.
+> 当前版本：`2.9.8`（个人自用 / beta）
+> 适配：DSH Desktop，Windows；依赖本机 Python 3.11、Node/DSH runtime。
 
-一个 DSH 桌面插件：把任务调度、并发、免费池、本机工具和可选的模组控制台集中到左栏面板。
+## 功能
 
----
+- **任务总览**：代码、地图、贴图、平衡四类任务的状态、批次、进度、worker/key 占用
+- **并发矩阵**：本地 key 池 × 模型（V4.1 / V4 / GLM / Gemma），显示实际占用和空闲槽位
+- **自动扩展**：按空闲槽位拉起扩展会话，支持阈值和上限
+- **免费池侦察**：解析公开 GitHub 清单的免费 LLM provider，输出 base URL / 额度 / key 页面
+- **地图工具**：许愿式命名、硬规则校验（出生点数量、矿、命名、差异化）
+- **素材工具**：GitHub 地图/模组搜索、桌面 maps 索引、国内 rtsbox 社区抓取
+- **浏览器搜索**：本机 Edge 无头搜索，截图 + DOM 文本，不走搜索 API
+- **任务遥测**：按任务类型记录 token / 耗时，每小时找异常批次
+- **自检**：插件语法、配置、token 账本、地图规则、监控状态
+- **QQbot 接口**：`/hub`、`/githubmaps`、`/mapvalidate`、`/power` 等
 
-## English
+## 2.9.x 新增
 
-### What it is
+- **会话雷达**：控制台卡片 + DSH 右侧面板入口（开始页「更多」菜单），只列运行中/最近活跃会话（标题、轮次、ctx%），点一行原地切会话，不展示对话内容
+- **MCP 层**：`tools/aihub_mcp_server.py` 为纯 HTTP 壳，17 个工具；`--stdio` 给本地客户端、`--sse --port 8790` 给远程 Agent（一次性 token）
+- **新 API**：`GET /api/quota`（额度按供应商）、`GET /api/tool-stats`（工具调用失败率/耗时/失败原因聚类）、`GET /api/token-curve`（7 天 token 曲线）
+- **429 熔断器**：`tools/circuit_breaker.py`，首次 429 冷却 300s、30 分钟内 3 次进冷宫 24h；默认关闭，`pipeline_config.json → circuit_breaker.enabled` 开启
+- **一句话拆任务**：`tools/commander_llm.py`（V4 Pro → JSON 任务卡，schema 校验/重试/兜底）+ `tools/verify_acceptance.py`（可执行断言、陈旧产物判定）
+- **发版辅助**：`tools/pack_plugin.py` 打 zip + sha256；`docs/release-checklist.md` 发版清单
 
-AI Console is a local-first scheduler for DSH. It watches the tasks you run on your own machine, shows which model/key slot is busy, and exposes a small local API so agents, scripts and a QQ bot can call the same tools.
+## 接口一览
 
-It started as a process watcher for a mod pipeline that used free AI. The free pool was not efficient enough, so the watcher became a scheduler. Later the project was split into:
+| 类型 | 端点 |
+|---|---|
+| 状态 | `/dsh-console/api/status`、`/api/health`、`/api/progress`、`/api/sessions` |
+| 任务 | `POST /api/jobs`、`GET /api/jobs`、`POST /api/event`、`POST /api/pipeline` |
+| 新增 | `GET /api/quota`、`GET /api/tool-stats?days=7`、`GET /api/token-curve?days=7` |
+| 会话 | `GET /api/sessions`、`POST /api/inject`、`POST /api/session/interrupt` |
 
-- `ai-hub` (this repository): scheduler
-- `task-mod`: optional mod console for maps, textures and balance
+> MCP 基址解析：环境变量 `AIHUB_API_BASE` → `tools/ds_console_url.txt` → 默认 `127.0.0.1:57181/dsh-console`。
 
-### Features
+## 安装
 
-- Task overview: code, map, texture and balance tasks with batch, progress, workers and keys
-- Concurrency matrix: provider-grouped key pool with per-provider model columns
-- Model module: three states per model (disabled / backup / active), all provider pools listed
-- Async jobs: job_id, /api/jobs, /api/event, cancel, stale timeout and OpenCode workers
-- Token accounting: per-provider and daily totals, cache_read separated
-- Key onboarding: register a provider into DSH, OpenCode direct/bridge probe
-- Schedule tab: read and delete DSH scheduled tasks
-- Auto-scaling: start extra workers when idle slots exceed a threshold
-- Free-pool discovery: parse public GitHub lists into provider candidates, base URLs and free quotas
-- Map tools: wish-based naming, spawn/resource validation, diff checks
-- Asset tools: GitHub map/mod search, local asset index, rtsbox community scraper
-- Browser search: local Edge screenshot + DOM text, no search API
-- Task telemetry: tokens, duration and anomalies by task type
-- Self-check: plugin syntax, config, token ledger, map rules, monitors
-- Local API for tools and QQ bot
-
-### Requirements
-
-- DSH Desktop (Windows)
-- Python 3.11
-- Node runtime bundled with DSH
-- Optional: Rusted Warfare + Tiled/TMX tools for the mod workflow
-- Optional: `task-mod` for the mod console
-
-### Install
-
-1. Open DSH Desktop.
-2. Go to **Settings → Plugins**.
-3. Install this folder as a local bundle (or clone this repository and select the folder).
-4. Restart DSH if the left-sidebar icon does not appear.
-5. Open **AI Console** from the left sidebar.
-
-```powershell
-git clone https://github.com/Railan1314/dsh-plugin-ai-hub.git
-```
-
-### npm
-
-```bash
-dsh plugin --profile desktop add dsh-plugin-ai-hub
-```
-
-There is no npm build step; the plugin is plain ES modules.
-
-### Configuration
-
-Main settings:
+1. 安装 DSH Desktop 和本机 Python 3.11
+2. 把 `ai-hub` 目录作为 bundle 安装：
 
 ```text
-tools/ds_console_settings.json
+DSH → 设置 → 插件 → 安装本地 bundle → 选择 插件/ai-hub
 ```
 
-Common fields:
+3. 需要模组控制台时再安装 `task-mod`
 
-```json
-{
-  "auto": true,
-  "idleThreshold": 0.3,
-  "expandTasks": 8,
-  "mapAuto": true,
-  "balanceAuto": true,
-  "qqNotify": true
-}
-```
+## 配置
 
-Local scripts and secrets are outside this repository. **Never commit API keys, tokens or notification configs.**
-
-### Local API
-
-Loopback only:
+主配置：
 
 ```text
-GET  /dsh-console/api/status
-GET  /dsh-console/api/tasks
-POST /dsh-console/api/tasks   {id, op}
-POST /dsh-console/api/tool    {action, ...}
-```
-
-Tool actions include:
-
-```text
-github / github-mods / community / community-scout
-browser-search / assets / asset-index / mapvalidate
-self-check / power / resource / task
-```
-
-### Security
-
-- The plugin does not read or write API keys.
-- `/dsh-console/api/*` is bound to localhost and has no token auth; do not expose DSH to the public internet.
-- Before publishing, remove `tools/dsh_config.json`, `tools/notify_config.json`, `tools/token_ledger.json` and personal data.
-- This is a personal/beta project; no cross-version compatibility guarantee.
-
-### Known limits
-
-- The matrix uses local key aliases, not real account identities.
-- The map validator's "resource" check is a non-empty tile check, not a strict resource-pool type check.
-- Headless Bing/Baidu may hide visual results behind anti-bot; DOM text is still saved.
-
----
-
-## 中文
-
-### 这是什么
-
-AI 调度台是一个本机优先的 DSH 调度插件。它观察你机器上的任务，显示当前哪个模型/key 槽位在忙，并提供一个小型本机 API，让 agent、脚本和 QQ 机器人调用同一套工具。
-
-最初只是想写个进程守护，让免费 AI 帮忙写模组；后来发现免费池效率不够，就把守护做成了调度台。再后来不想直接做模组内容，于是拆成两个插件：
-
-- `ai-hub`（本仓库）：调度台
-- `task-mod`：可选模组控制台，负责地图/贴图/平衡
-
-不需要模组的人只装调度台即可。
-
-### 功能
-
-- 任务总览：代码、地图、贴图、平衡的状态、批次、进度、worker/key
-- 并发矩阵：按密钥供应商分组，每个供应商独立显示自己已开启的模型列
-- 模型模块：不启用 / 备选 / 启用三态，所有池子模型都列出
-- 异步任务：job_id、/api/jobs、/api/event、取消、超时 stale、OpenCode worker
-- Token 统计：按供应商和每日统计，cache_read 单列
-- 密钥接入：把 provider 写进 DSH，OpenCode 自动测试直连/桥接
-- 定时页：读取 DSH 定时任务并支持删除
-- 自动扩展：空闲槽位超过阈值时拉起额外任务
-- 免费池侦察：解析公开 GitHub 清单，输出 provider、base URL、免费额度
-- 地图工具：许愿式命名、出生点/矿校验、差异化检查
-- 素材工具：GitHub 地图/模组搜索、桌面素材索引、rtsbox 社区抓取
-- 浏览器搜索：本机 Edge 截图 + DOM 文本，不走搜索 API
-- 任务遥测：按任务类型记录 token、耗时和异常
-- 自检：插件语法、配置、token 账本、地图规则、监控
-- 本机 API：给工具和 QQbot 共用
-
-### 安装
-
-1. 打开 DSH Desktop
-2. 进入 **设置 → 插件**
-3. 选择本目录作为本地 bundle 安装
-4. 左侧没有图标就重启 DSH
-5. 从左栏打开 **AI 调度台**
-
-```powershell
-git clone https://github.com/Railan1314/dsh-plugin-ai-hub.git
-```
-
-没有 npm 构建步骤，插件是普通 ES module。
-
-### 依赖
-
-- DSH Desktop（Windows）
-- Python 3.11
-- DSH 自带 Node runtime
-- 可选：铁锈战争 + Tiled/TMX 工具
-- 可选：`task-mod` 模组控制台
-
-### 配置
-
-```text
-tools/ds_console_settings.json
+tools\ds_console_settings.json
 ```
 
 常用项：
@@ -194,32 +70,88 @@ tools/ds_console_settings.json
 }
 ```
 
-本机脚本和密钥不在本仓库内。**不要提交 API key、token 或通知配置。**
+路径通过 `tools\` 下的脚本配置，不需要改插件源码。
 
-### 安全
+## 本机 API
 
-- 插件不读取、不写入 API key
+只监听回环地址：
+
+```text
+GET  /dsh-console/api/status
+GET  /dsh-console/api/tasks
+POST /dsh-console/api/tasks   {id, op}
+POST /dsh-console/api/tool    {action, ...}
+```
+
+工具动作：
+
+```text
+github / github-mods / community / community-scout
+browser-search / assets / asset-index / mapvalidate
+self-check / power / resource / task
+```
+
+## 安全
+
+- 插件**不读取、不写入 API key**；key 在 `tools\dsh_config.json`，不要提交到公开仓库
 - `/dsh-console/api/*` 只绑本机回环，不做 token 鉴权；不要把 DSH 暴露到公网
-- 发布前删除 `tools/dsh_config.json`、`tools/notify_config.json`、`tools/token_ledger.json` 和个人数据
-- 个人/beta 项目，不保证跨 DSH 版本兼容
+- 发布前删除 `tools\notify_config.json`、`tools\paid_takeover.json`、`tools\token_ledger.json` 等个人数据
+- 个人自用版本，按现状提供，不保证跨 DSH 版本兼容
 
-### 已知限制
+## 开发
 
-- 并发矩阵的 key 名称是本地别名，不对应真实账号
+```text
+index.js         Host：状态快照、任务控制、工具 API
+client.js        Client：左栏面板与页面
+cordis.patch.yml bundle 入口
+locale/         中英文
+```
+
+改完 JS 后至少跑：
+
+```powershell
+node --check 插件\ai-hub\index.js
+node --check 插件\ai-hub\client.js
+python -X utf8 tools\self_check.py
+```
+
+## 已知限制
+
+- 并发矩阵的 key 名称是本地映射，不对应真实账号
 - 地图校验里的“矿”目前只检查非空资源格，不是严格资源池类型
-- 无头 Bing/百度可能被反爬隐藏结果，DOM 文本仍会保存
+- 浏览器搜索在无头模式下可能被 Bing/百度反爬隐藏结果，DOM 文本仍会保存
+- 不是通用任务看板；任务模型偏模组流水线
 
-### 来历
+## 反馈
 
-最初只想写个进程守护，让免费 AI 帮忙写模组；后来发现免费池效率不够，就把守护做成了调度台。再后来不想直接做模组内容，于是拆成调度台 + 模组控制台。
+带以下信息提 issue：
 
----
+- 版本号
+- 失败的任务类型 / 批次
+- `tools\self_check.json` 和 `tools\telemetry_report.md` 的相关片段
+- 不要贴完整 API key
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+个人项目，未声明开源许可证；公开发布前请先决定 License（MIT / Apache-2.0 / 自用保留）。
 
-## Links
+---
 
-- Issues: https://github.com/Railan1314/dsh-plugin-ai-hub/issues
-- Releases: https://github.com/Railan1314/dsh-plugin-ai-hub/releases
+## 项目核心目标
+
+本项目围绕三件事持续迭代：
+
+1. **代码能不能跑起来** —— 能装、能启动、能复现，比功能多更重要。
+2. **README 写得清不清楚** —— 别人照着文档能跑通，不用来问你。
+3. **有没有解决实际问题** —— 不做演示型功能，只解决真实的调度、额度、容灾问题。
+
+## 开源与商业许可（Dual Licensing）
+
+本项目默认遵循 **AGPL-3.0** 协议开源，个人使用、学习、开源项目集成都免费。
+
+如果你所在的公司或团队希望在**闭源产品**或**SaaS 服务**中使用本项目，需要获取商业授权（Commercial License）。欢迎联系作者沟通：1453875289@qq.com。我们乐意用对双方都合适的方式合作。
+
+## 贡献与免责
+
+- 提交 PR 即视为同意将所提交代码的版权及商业化授权一并授予原作者（CLA 声明），以便项目在双许可模式下持续维护。
+- 本项目仅供合法用途。**严禁**将本项目用于违规批量注册、账号农场、绕过平台风控等黑灰产场景；由此产生的一切后果由使用者自行承担，与作者无关。

@@ -690,6 +690,11 @@ window.__ModuleLoader__.load({
 .dsc-session-actions .dsc-input{min-width:180px;flex:1}
 .dsc-session-status{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
 .dsc-session-status .dsc-dot{width:7px;height:7px}
+.dsc-ended{margin-top:10px;padding-top:8px;border-top:1px dashed var(--dsw-alias-border-l1)}
+.dsc-ended-title{font-size:11.5px;font-weight:650;color:var(--dsw-alias-label-secondary);margin-bottom:5px}
+.dsc-ended-row{display:grid;grid-template-columns:minmax(130px,1fr) auto 54px;gap:8px;align-items:center;padding:4px 2px;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.dsc-ended-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}
+.dsc-ended-meta,.dsc-ended-time{white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:720px){.dsc-session-row{grid-template-columns:12px minmax(100px,1fr) 44px 52px 68px;gap:6px}.dsc-session-time{font-size:10px}}
 
 @media (max-width:880px){.dsc-logs{grid-template-columns:1fr}.dsc-row2{grid-template-columns:1fr}.dsc-inner{padding-left:18px;padding-right:18px}}
@@ -954,6 +959,7 @@ window.__ModuleLoader__.load({
               h('span', { className: 'dsc-chip' }, tr('phase'), ' ', h('b', null, phaseText)),
               h('span', { className: 'dsc-chip' }, tr('cycle'), ' ', h('b', null, String(pipeline.cycle || 0))),
               h('span', { className: 'dsc-chip' }, tr('round'), ' ', h('b', null, String(pipeline.round || 0))),
+              h('span', { className: 'dsc-chip' }, '并发 ', h('b', null, String(pipeline.workers || 0))),
               h('span', { className: 'dsc-chip' }, tr('pid'), ' ', h('b', null, pipeline.pid ? String(pipeline.pid) : tr('pidNone'))),
             ),
             h(
@@ -1294,6 +1300,7 @@ window.__ModuleLoader__.load({
     function SessionRadar() {
       const [sessions, setSessions] = React.useState([])
       const [running, setRunning] = React.useState([])
+      const [recentEnded, setRecentEnded] = React.useState([])
       const [selected, setSelected] = React.useState(null)
       const [message, setMessage] = React.useState('')
       const [notice, setNotice] = React.useState('')
@@ -1311,9 +1318,11 @@ window.__ModuleLoader__.load({
             .sort((a, b) => (Number(b.running) - Number(a.running)) || (Date.parse(String(b.lastActive || '')) - Date.parse(String(a.lastActive || ''))))
           setSessions(visible)
           setRunning(((progress || {}).sessions || {}).running || [])
+          setRecentEnded(Array.isArray((data || {}).recentEnded) ? data.recentEnded : [])
           setSelected((old) => (old && visible.some((s) => s.sessionId === old.sessionId) ? old : null))
         } catch (error) {
           setSessions([])
+          setRecentEnded([])
         }
       }, [])
       React.useEffect(() => {
@@ -1407,6 +1416,14 @@ window.__ModuleLoader__.load({
                     h('span', { className: 'dsc-session-time' }, sessionAgo(session.lastActive)))
                 })))
             : h('div', { className: 'dsc-empty' }, '没有正在运行或最近活跃的会话。')),
+        recentEnded.length
+          ? h('div', { className: 'dsc-ended' },
+              h('div', { className: 'dsc-ended-title' }, '最近结束'),
+              recentEnded.slice(0, 5).map((event) => h('div', { className: 'dsc-ended-row', key: `${event.sessionId}:${event.turn}` },
+                h('span', { className: 'dsc-ended-name', title: event.sessionId }, event.title || event.sessionId),
+                h('span', { className: 'dsc-ended-meta' }, `${Number(event.turn) || 0} 轮 · ctx ${Number(event.contextPct) || 0}%${event.late ? ' · 迟到' : ''}`),
+                h('span', { className: 'dsc-ended-time' }, sessionAgo(event.at)))))
+          : null,
         selected
           ? h('div', { className: 'dsc-session-actions', style: { marginTop: '8px' } },
               h('span', { className: 'dsc-session-status' }, h('span', { className: 'dsc-dot' }), selected.title || selected.sessionId),
@@ -3434,6 +3451,66 @@ window.__ModuleLoader__.load({
       return null
     }
 
+    /**
+     * 会话雷达（DSH 右侧面板 body）。
+     * 只读 /api/sessions + /api/progress，点一行用 uiWorkspace.openSession 原地切会话。
+     */
+    function RadarTabBody(props) {
+      const openSession = props && typeof props.openSession === 'function' ? props.openSession : null
+      const [rows, setRows] = React.useState([])
+      const [running, setRunning] = React.useState(0)
+      const [error, setError] = React.useState('')
+      const load = React.useCallback(async () => {
+        try {
+          const [data, progress] = await Promise.all([
+            fetch('/dsh-console/api/sessions').then((r) => r.json()).catch(() => ({})),
+            fetch('/dsh-console/api/progress').then((r) => r.json()).catch(() => ({})),
+          ])
+          const list = Array.isArray((data || {}).sessions) ? data.sessions : []
+          const cutoff = Date.now() - 24 * 3600 * 1000
+          const visible = list
+            .filter((s) => s && s.sessionId && (s.running || Date.parse(String(s.lastActive || '')) >= cutoff))
+            .sort((a, b) => (Number(b.running) - Number(a.running)) || (Date.parse(String(b.lastActive || '')) - Date.parse(String(a.lastActive || ''))))
+            .slice(0, 40)
+          setRows(visible)
+          const runningRows = (((progress || {}).sessions || {}).running || []).length
+          setRunning(runningRows || visible.filter((s) => s.running).length)
+          setError('')
+        } catch (e) {
+          setError(String((e && e.message) || e))
+        }
+      }, [])
+      React.useEffect(() => {
+        load()
+        const timer = setInterval(load, 10000)
+        return () => clearInterval(timer)
+      }, [load])
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' } },
+        h('div', { style: { fontSize: '12px', opacity: 0.75 } }, `${running} 运行中 · ${rows.length} 可见`),
+        error ? h('div', { style: { fontSize: '11px', color: '#f87171' } }, error) : null,
+        rows.length
+          ? rows.map((s) => {
+            const pct = Math.max(0, Math.min(100, Number(s.contextPct) || 0))
+            const status = s.running ? '#34d399' : (s.stale ? '#f59e0b' : '#94a3b8')
+            return h('button', {
+              key: s.sessionId,
+              type: 'button',
+              title: s.sessionId,
+              onClick: () => openSession && openSession(s.sessionId),
+              style: {
+                display: 'flex', alignItems: 'center', gap: '6px', width: '100%', textAlign: 'left',
+                padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(148,163,184,.25)',
+                background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: '12px',
+              },
+            },
+              h('span', { style: { width: '7px', height: '7px', borderRadius: '50%', background: status, flex: 'none' } }),
+              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, s.title || s.sessionId),
+              h('span', { style: { opacity: 0.7, flex: 'none' } }, `${Number(s.turns) || 0}轮`),
+              h('span', { style: { opacity: pct > 60 ? 1 : 0.7, color: pct > 60 ? '#fbbf24' : 'inherit', flex: 'none' } }, `${pct}%`))
+          })
+          : h('div', { style: { fontSize: '12px', opacity: 0.6 } }, '没有正在运行或最近活跃的会话。'))
+    }
+
     return {
       inject: ['slots', 'locale'],
       /**
@@ -3468,6 +3545,54 @@ window.__ModuleLoader__.load({
             TurnSound,
           ),
         )
+
+        // 会话雷达（DSH 右侧面板）：类型注册 + body + 「开始页 More」入口。
+        // 依赖服务缺失（旧版 DSH）时整个块静默跳过，不影响控制台。
+        ctx.inject(['sidebarRightTabs', 'sidebarRight', 'uiWorkspace'], (scope) => {
+          try {
+            const KIND = 'aihub-radar'
+            ctx.effect(() => scope.sidebarRightTabs.register({
+              id: KIND,
+              kind: KIND,
+              patterns: ['dsh-resource://aihub-radar/**'],
+              priority: 'builtin',
+              canOpen: () => true,
+              title: () => '会话雷达',
+            }), 'ds-console: radar tab type')
+            ctx.slots.inject('sidebar.right.pane.tab', () =>
+              ctx.slots.register(
+                { name: 'sidebar.right.pane.tab', key: KIND, locale: NS },
+                (props) => h(RadarTabBody, {
+                  ...(props || {}),
+                  openSession: (id) => {
+                    try {
+                      scope.uiWorkspace.openSession(id)
+                    } catch (e) {
+                      console.warn('[ai-hub] openSession failed', e)
+                    }
+                  },
+                }),
+              ),
+            )
+            ctx.slots.inject('sidebar.right.tab.guide.actions', () =>
+              ctx.slots.register(
+                { name: 'sidebar.right.tab.guide.actions', id: 'aihub-radar-open', order: 60, locale: NS, label: () => '会话雷达' },
+                () => h('button', {
+                  type: 'button',
+                  onClick: () => {
+                    try {
+                      scope.sidebarRight.openTab(KIND, { params: {} })
+                    } catch (e) {
+                      console.warn('[ai-hub] openTab failed', e)
+                    }
+                  },
+                }, '会话雷达'),
+              ),
+            )
+          } catch (error) {
+            console.warn('[ai-hub] 会话雷达注册失败（DSH 版本差异），已跳过', error)
+          }
+        })
       },
     }
   },
