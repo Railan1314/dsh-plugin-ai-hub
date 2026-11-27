@@ -296,8 +296,8 @@ window.__ModuleLoader__.load({
     }
 
     const EN = {
-      panel: 'Console',
-      title: 'Process Console',
+      panel: 'AI Dispatch Console',
+      title: 'AI Dispatch Console',
       subtitle: 'ds workspace · pipeline + Fat Fish',
       tabPipeline: 'Pipeline',
       tabHome: 'Home',

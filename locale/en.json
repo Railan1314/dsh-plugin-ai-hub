@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Process Console",
-    "description": "A sidebar control panel for the ds workspace pipeline: live status and audit progress, switches for auto supervision, restart-on-failure and phone notifications, plus start and stop actions."
+    "title": "AI Dispatch Console",
+    "description": "One panel for every AI task, key and quota: provider pools, concurrency scheduling, quota ledger, async job bus and session radar."
   }
 }
