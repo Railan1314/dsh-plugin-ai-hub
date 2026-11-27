@@ -1,9 +1,33 @@
-# AI 调度台（dsh-plugin-ai-hub）
+# AI Dispatch Console · AI 调度台（dsh-plugin-ai-hub）
+
+**English name:** AI Dispatch Console
+**中文名：** AI 调度台
+**One-liner:** A DSH side-panel console for routing, scheduling and watching local AI jobs — key pools, concurrency matrix, free-model radar, session radar, MCP bridge, and one-sentence task dispatch.
 
 DSH 的左栏调度插件：把本机的模组流水线、地图、贴图、平衡、免费池、QQbot 和本机工具集中到一个面板里。
 
 > 当前版本：`2.9.8`（个人自用 / beta）
 > 适配：DSH Desktop，Windows；依赖本机 Python 3.11、Node/DSH runtime。
+
+## 界面一览
+
+> 以下均为 AI 调度台 v2.9.8 的真实界面截图（DSH 左栏面板）。
+
+| 主页 · 会话雷达 / Token 曲线 | 工作流 · 运行概览 |
+|---|---|
+| ![主页](docs/screenshots/console-home.jpg) | ![工作流](docs/screenshots/console-workflow.jpg) |
+
+| 免费池 · 密钥与额度 | 情报 · 雷达 |
+|---|---|
+| ![免费池](docs/screenshots/console-free.jpg) | ![情报](docs/screenshots/console-radar.jpg) |
+
+| 复盘 · 任务结果 | 定时 · 定时任务 |
+|---|---|
+| ![复盘](docs/screenshots/console-review.jpg) | ![定时](docs/screenshots/console-schedule.jpg) |
+
+| 设置 · 开关与模型 | 大肥鱼 · QQ 代理 |
+|---|---|
+| ![设置](docs/screenshots/console-settings.jpg) | ![大肥鱼](docs/screenshots/console-bot.jpg) |
 
 ## 功能
 
@@ -133,7 +157,7 @@ python -X utf8 tools\self_check.py
 
 ## License
 
-个人项目，未声明开源许可证；公开发布前请先决定 License（MIT / Apache-2.0 / 自用保留）。
+AGPL-3.0，见 [LICENSE](LICENSE)。闭源产品 / SaaS 商用需单独商业授权。
 
 ---
 
@@ -155,3 +179,18 @@ python -X utf8 tools\self_check.py
 
 - 提交 PR 即视为同意将所提交代码的版权及商业化授权一并授予原作者（CLA 声明），以便项目在双许可模式下持续维护。
 - 本项目仅供合法用途。**严禁**将本项目用于违规批量注册、账号农场、绕过平台风控等黑灰产场景；由此产生的一切后果由使用者自行承担，与作者无关。
+
+## 最新版说明
+
+- 版本：`dsh-plugin-ai-hub@2.9.8`（npm 已发布）
+- 更新：2026-11-26
+- 主要能力：
+  - 密钥池：AMD 13 + OpenCode 10 + WorkBuddy 1，按供应商分组、按额度类型（daily / decay / paid）分层
+  - 并发矩阵：按供应商分段，实时显示占用路数
+  - 额度页：按供应商统计今日/累计 + DeepSeek 账号余额
+  - 免费模型登记：`free_models_registry.json`（50+ 条，含是否绑卡）
+  - 异步 job 总线：创建 / 查询 / 取消 / 完成回投父会话
+  - 会话管理：列表、清理、导出；会话结束事件推送
+  - OpenCode 桥接：opencode ~ opencode10，按模型前缀自动切 key
+  - API：`/api/status`、`/api/jobs`、`/api/progress`、`/api/inject`、`/api/tool-stats`、`/api/token-curve`
+- 协议：AGPL-3.0（见 LICENSE）；闭源商用需商业授权

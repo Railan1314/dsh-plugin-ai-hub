@@ -1,21 +1,40 @@
-MIT License
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
 
-Copyright (c) 2026 Railan
+Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+Everyone is permitted to copy and distribute verbatim copies of this license
+document, but changing it is not allowed.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+---------------------------------------------------------------------------
+本项目（dsh-plugin-ai-hub / AI 调度台）以 GNU Affero General Public License
+v3.0 授权发布。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+完整协议全文（Full license text）：
+  https://www.gnu.org/licenses/agpl-3.0.txt
+
+> 说明：仓库里的这份文件是「声明 + 指向全文」的简短版。若需要 GitHub 侧边栏
+> 自动识别协议标签，请在网页端 Add file → Create new file → 输入 LICENSE →
+> 选择 AGPL-3.0 模板提交，GitHub 会自动写入完整全文并点亮协议徽标。
+
+---------------------------------------------------------------------------
+Copyright (C) 2026 Railan <1453875289@qq.com>
+
+商业授权（Commercial License）：
+  个人使用、学习、开源项目集成本项目均免费。
+  公司或团队若要在闭源产品或 SaaS 服务中使用，需另行获取商业授权，
+  请联系 <1453875289@qq.com>。
+
+贡献（CLA）：
+  提交 PR 即视为同意将所提交代码的版权及商业化授权一并授予原作者。

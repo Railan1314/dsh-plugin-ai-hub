@@ -2,10 +2,11 @@
   "name": "dsh-plugin-ai-hub",
   "version": "2.9.8",
   "private": false,
-  "description": "AI 调度台（主机）：密钥池 / 并发 / 任务注册 / 大肥鱼；任务由 DLC 插件注册",
+  "displayName": "AI Dispatch Console",
+  "description": "AI Dispatch Console (AI 调度台): a DSH side-panel for key pools, concurrency, job dispatch, free-model radar and MCP bridge.",
   "type": "module",
   "main": "index.js",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

@@ -504,8 +504,8 @@ window.__ModuleLoader__.load({
     const CSS = `
 .dsc-root{box-sizing:border-box;height:100%;overflow-y:auto;overflow-x:hidden;color:var(--dsw-alias-label-primary)}
 .dsc-inner{width:100%;box-sizing:border-box;max-width:none;margin:0;padding:calc(var(--dsh-frame-top-clearance,0px) + 24px) 30px 52px;display:flex;flex-direction:column;gap:20px}
-.dsc-herobar{display:flex;flex-direction:column;gap:14px;padding:18px 20px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 9%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1) 46%,color-mix(in srgb,var(--dsw-alias-state-business-primary) 5%,var(--dsw-alias-bg-layer-2)));box-shadow:0 1px 2px rgba(0,0,0,.08);box-sizing:border-box;width:100%;min-width:0}
-.dsc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.dsc-herobar{position:sticky;top:0;z-index:7;backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:14px;padding:18px 20px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 9%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1) 46%,color-mix(in srgb,var(--dsw-alias-state-business-primary) 5%,var(--dsw-alias-bg-layer-2)));box-shadow:0 1px 2px rgba(0,0,0,.08);box-sizing:border-box;width:100%;min-width:0}
+.dsc-head{position:sticky;top:0;z-index:7;background:var(--dsw-alias-bg-layer-1);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;padding-bottom:6px}
 .dsc-title{display:flex;gap:13px;align-items:center;min-width:0}
 .dsc-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-brand-primary);flex:none}
 .dsc-h1{font-size:19px;font-weight:650;margin:0;line-height:1.25;letter-spacing:.2px}
@@ -522,7 +522,9 @@ window.__ModuleLoader__.load({
 .dsc-btn:disabled{opacity:.42;cursor:not-allowed}
 .dsc-btn.primary{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:linear-gradient(135deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1))}
 .dsc-btn.danger{border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
-.dsc-tabs{display:flex;gap:4px;padding:10px 0 0;border-top:1px solid var(--dsw-alias-border-l1);align-self:stretch;overflow-x:auto;scrollbar-width:none;min-width:0}
+.dsc-radar-body{overflow-x:hidden;max-width:100%;min-width:0}
+.dsc-radar-body *{max-width:100%}
+.dsc-tabs{position:relative;z-index:6;background:transparent;display:flex;gap:4px;padding:10px 0 0;border-top:1px solid var(--dsw-alias-border-l1);align-self:stretch;overflow-x:auto;scrollbar-width:none;min-width:0}
 .dsc-tabs::-webkit-scrollbar{display:none}
 .dsc-tab{font-family:inherit;font-size:12.5px;padding:7px 15px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;white-space:nowrap;transition:background .12s ease,color .12s ease,border-color .12s ease}
 .dsc-tab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}
@@ -1297,6 +1299,20 @@ window.__ModuleLoader__.load({
 
     const SESSION_GROUPS = ['ds工作区', '代码任务', '地图任务', '贴图任务', '平衡任务', '大肥鱼', '其他']
 
+    function RadarCard() {
+      return h("section", { className: "dsc-card" },
+        h("h3", { className: "dsc-sec-title" }, "会话雷达（分组/折叠/搜索）"),
+        h(RadarTabBody, {
+          openSession: (id) => {
+            try {
+              window.open("/?session=" + encodeURIComponent(id), "_blank", "noopener,noreferrer")
+            } catch (e) {
+              console.warn("[ai-hub] openSession failed", e)
+            }
+          },
+        }))
+    }
+
     function SessionRadar() {
       const [sessions, setSessions] = React.useState([])
       const [running, setRunning] = React.useState([])
@@ -1498,7 +1514,10 @@ window.__ModuleLoader__.load({
       return h(
         React.Fragment,
         null,
-        h(SessionRadar, null),
+        h(RadarCard, null),
+        h(TokenCurveCard, null),
+        h(ToolStatsCard, null),
+        h(FreeModelCard, null),
         h(
           'section',
           { className: 'dsc-card' },
@@ -3452,19 +3471,177 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 工具调用健康（M2-3）：7 天失败率、失败最多的工具、失败原因 Top。
+     */
+    /**
+     * 免费模型能力（M2-17）：展示硬测试与验收报告里的模型评分。
+     */
+    function FreeModelCard() {
+      const [data, setData] = React.useState(null)
+      const [error, setError] = React.useState("")
+      React.useEffect(() => {
+        let alive = true
+        const readJson = async (root, rel) => {
+          const resp = await fetch("/dsh-console/api/tool", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "read", path: `${root}\\${rel.replace(/\//g, "\\")}`, max: 200000 }),
+          })
+          const out = await resp.json()
+          if (!out || out.ok === false) throw new Error((out && out.message) || "读取失败")
+          return JSON.parse(out.text)
+        }
+        ;(async () => {
+          try {
+            const status = await fetch("/dsh-console/api/status").then((r) => r.json())
+            const root = String((status && status.root) || "")
+            if (!root) throw new Error("拿不到工作区根路径")
+            const [hard, simple] = await Promise.all([
+              readJson(root, "tools/model_hard_report.json").catch(() => null),
+              readJson(root, "tools/key_acceptance_report.json").catch(() => null),
+            ])
+            if (alive) { setData({ hard: (hard && hard.runs) || [], simple: (simple && simple.results) || [] }); setError("") }
+          } catch (e) {
+            if (alive) setError(String((e && e.message) || e))
+          }
+        })()
+        return () => { alive = false }
+      }, [])
+      const hard = ((data && data.hard) || []).slice().sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0)).slice(0, 6)
+      const simple = ((data && data.simple) || []).slice().sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0)).slice(0, 4)
+      return h("section", { className: "dsc-card" },
+        h("h3", { className: "dsc-sec-title" }, "免费模型能力（100 分制硬测试）",
+          h("small", null, data ? `收录 ${(((data && data.hard) || []).length)} 条` : "加载中…")),
+        error ? h("div", { className: "dsc-hint" }, `读取失败：${error}`) : null,
+        hard.length
+          ? h("div", { className: "dsc-hint", style: { display: "flex", flexDirection: "column", gap: "2px" } },
+            ...hard.map((r, i) => h("div", { key: `${r.provider}-${r.model}-${i}` },
+              `${r.provider} / ${r.model}：${r.total} 分（${r.seconds || "?"}s）`)))
+          : h("div", { className: "dsc-hint" }, "还没有硬测试记录，运行 tools\\model_hard_test.py 后出现。"),
+        simple.length
+          ? h("div", { className: "dsc-hint", style: { marginTop: "4px" } },
+            "简单验收：", simple.map((r) => `${r.label || r.provider_model} ${r.score}/${r.max || 80}`).join(" · "))
+          : null)
+    }
+
+    function ToolStatsCard() {
+      const [data, setData] = React.useState(null)
+      const [error, setError] = React.useState('')
+      React.useEffect(() => {
+        let alive = true
+        fetch('/dsh-console/api/tool-stats?days=7')
+          .then((r) => r.json())
+          .then((json) => { if (alive) { setData(json); setError('') } })
+          .catch((e) => { if (alive) setError(String((e && e.message) || e)) })
+        return () => { alive = false }
+      }, [])
+      const tools = ((data && data.tools) || []).slice()
+        .filter((t) => Number(t.calls) >= 30)
+        .sort((a, b) => (Number(b.failRate) || 0) - (Number(a.failRate) || 0))
+        .slice(0, 4)
+      const sigs = ((data && data.failureSignatures) || []).slice(0, 3)
+      return h('section', { className: 'dsc-card' },
+        h('h3', { className: 'dsc-sec-title' }, '工具调用健康（7 天）',
+          h('small', null, data ? `${data.totalCalls} 次 · 失败 ${data.totalFailed}（${data.failRate}%）` : '加载中…')),
+        error ? h('div', { className: 'dsc-hint' }, `读取失败：${error}`) : null,
+        tools.length
+          ? h('div', { className: 'dsc-hint', style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
+            ...tools.map((tool) => h('div', { key: tool.name },
+              `${tool.name}：${tool.calls} 次，失败 ${tool.failed}（${tool.failRate}%），均耗时 ${Math.round(tool.avgMs || 0)}ms`)))
+          : null,
+        sigs.length
+          ? h('div', { className: 'dsc-hint', style: { marginTop: '4px' } },
+            '失败原因：' + sigs.map((s) => `${String(s.signature || s.reason || '').slice(0, 26)} ×${s.count}`).join('；'))
+          : null)
+    }
+
+    /**
+     * 7 天 token 曲线（M2-4）：读 /api/token-curve，按供应商画折线，纯 SVG 不引图表库。
+     */
+    function TokenCurveCard() {
+      const [data, setData] = React.useState(null)
+      const [error, setError] = React.useState('')
+      React.useEffect(() => {
+        let alive = true
+        fetch('/dsh-console/api/token-curve?days=7')
+          .then((r) => r.json())
+          .then((json) => { if (alive) { setData(json); setError('') } })
+          .catch((e) => { if (alive) setError(String((e && e.message) || e)) })
+        return () => { alive = false }
+      }, [])
+      const colors = { DeepSeek: '#60a5fa', AMD: '#f59e0b', OpenCode: '#34d399' }
+      const series = (data && data.series) || []
+      const providers = (data && data.providers) || []
+      const max = Math.max(1, ...series.map((row) => Number(row.total) || 0))
+      const W = 520
+      const H = 120
+      const step = series.length > 1 ? W / (series.length - 1) : W
+      const fmt = (n) => {
+        const v = Number(n) || 0
+        if (v >= 1e8) return `${(v / 1e8).toFixed(2)} 亿`
+        if (v >= 1e4) return `${(v / 1e4).toFixed(1)} 万`
+        return String(v)
+      }
+      return h('section', { className: 'dsc-card' },
+        h('h3', { className: 'dsc-sec-title' }, '7 天 token 曲线', h('small', null, data ? `窗口合计 ${fmt(data.windowTotal)}` : '加载中…')),
+        error ? h('div', { className: 'dsc-hint' }, `读取失败：${error}`) : null,
+        series.length
+          ? h('div', null,
+            h('svg', { viewBox: `0 0 ${W} ${H + 20}`, width: '100%', height: '150', role: 'img', 'aria-label': '7 天 token 曲线' },
+              [0, 0.5, 1].map((ratio) => h('line', {
+                key: `grid-${ratio}`,
+                x1: 0, x2: W, y1: H - H * ratio, y2: H - H * ratio,
+                stroke: 'rgba(148,163,184,.25)', strokeWidth: 1, strokeDasharray: ratio === 0 ? '0' : '4 4',
+              })),
+              ...providers.map((name) => h('polyline', {
+                key: name,
+                fill: 'none',
+                stroke: colors[name] || '#94a3b8',
+                strokeWidth: 2,
+                points: series.map((row, i) => `${i * step},${H - H * ((Number(row.providers && row.providers[name]) || 0) / max)}`).join(' '),
+              })),
+              ...series.map((row, i) => h('text', {
+                key: `x-${row.date}`, x: Math.min(Math.max(i * step, 12), W - 12), y: H + 16,
+                fill: 'rgba(148,163,184,.9)', fontSize: 10, textAnchor: 'middle',
+              }, String(row.date || '').slice(5))),
+            ),
+            h('div', { className: 'dsc-hint', style: { display: 'flex', gap: '12px', flexWrap: 'wrap' } },
+              ...providers.map((name) => h('span', { key: name }, h('span', { style: { display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: colors[name] || '#94a3b8', marginRight: '4px' } }), `${name} ${fmt((data.windowTotals || {})[name])}`)),
+              h('span', null, `全量累计 ${fmt(data.allTimeTotal)}`)))
+          : h('div', { className: 'dsc-hint' }, error ? '' : '暂无 token 数据。'))
+    }
+
+    /**
      * 会话雷达（DSH 右侧面板 body）。
-     * 只读 /api/sessions + /api/progress，点一行用 uiWorkspace.openSession 原地切会话。
+     * 实时进度为主：点行切会话；每行带快捷「打断/投递」，顶部可只筛运行中。
      */
     function RadarTabBody(props) {
       const openSession = props && typeof props.openSession === 'function' ? props.openSession : null
       const [rows, setRows] = React.useState([])
       const [running, setRunning] = React.useState(0)
       const [error, setError] = React.useState('')
+      const [onlyRunning, setOnlyRunning] = React.useState(() => {
+        try { return window.localStorage.getItem("aihub.radar.onlyRunning") === "1" } catch (e) { return false }
+      })
+      React.useEffect(() => {
+        try { window.localStorage.setItem("aihub.radar.onlyRunning", onlyRunning ? "1" : "0") } catch (e) { /* ignore */ }
+      }, [onlyRunning])
+      const [busyId, setBusyId] = React.useState('')
+      const [injectFor, setInjectFor] = React.useState('')
+      const [injectText, setInjectText] = React.useState('')
+      const [notice, setNotice] = React.useState('')
+      const [search, setSearch] = React.useState("")
+      const [collapsed, setCollapsed] = React.useState(() => {
+        try { return JSON.parse(window.localStorage.getItem("aihub.radar.collapsed") || "{}") || {} } catch (e) { return {} }
+      })
+      React.useEffect(() => {
+        try { window.localStorage.setItem("aihub.radar.collapsed", JSON.stringify(collapsed || {})) } catch (e) { /* ignore */ }
+      }, [collapsed])
       const load = React.useCallback(async () => {
         try {
           const [data, progress] = await Promise.all([
-            fetch('/dsh-console/api/sessions').then((r) => r.json()).catch(() => ({})),
-            fetch('/dsh-console/api/progress').then((r) => r.json()).catch(() => ({})),
+            fetch('/dsh-console/api/sessions').then((r) => r.json()),
+            fetch('/dsh-console/api/progress').then((r) => r.json()),
           ])
           const list = Array.isArray((data || {}).sessions) ? data.sessions : []
           const cutoff = Date.now() - 24 * 3600 * 1000
@@ -3485,30 +3662,281 @@ window.__ModuleLoader__.load({
         const timer = setInterval(load, 10000)
         return () => clearInterval(timer)
       }, [load])
-      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' } },
-        h('div', { style: { fontSize: '12px', opacity: 0.75 } }, `${running} 运行中 · ${rows.length} 可见`),
-        error ? h('div', { style: { fontSize: '11px', color: '#f87171' } }, error) : null,
-        rows.length
-          ? rows.map((s) => {
-            const pct = Math.max(0, Math.min(100, Number(s.contextPct) || 0))
-            const status = s.running ? '#34d399' : (s.stale ? '#f59e0b' : '#94a3b8')
-            return h('button', {
-              key: s.sessionId,
-              type: 'button',
-              title: s.sessionId,
-              onClick: () => openSession && openSession(s.sessionId),
-              style: {
-                display: 'flex', alignItems: 'center', gap: '6px', width: '100%', textAlign: 'left',
-                padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(148,163,184,.25)',
-                background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: '12px',
-              },
+      const post = (url, body) => fetch(url, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}),
+      }).then((r) => r.json().catch(() => ({})).then((json) => ({ ok: r.ok, json })))
+      const interrupt = async (sessionId) => {
+        setBusyId(sessionId)
+        setNotice('打断中…')
+        try {
+          const { ok, json } = await post('/dsh-console/api/session/interrupt', { sessionId })
+          if (!ok || json.ok === false) throw new Error(json.message || 'HTTP 失败')
+          setNotice('已打断')
+          load()
+        } catch (e) {
+          setNotice('打断失败：' + String((e && e.message) || e))
+        } finally {
+          setBusyId('')
+        }
+      }
+      const inject = async () => {
+        const text = injectText.trim()
+        if (!injectFor || !text || busyId) return
+        setBusyId(injectFor)
+        setNotice('投递中…')
+        try {
+          const { ok, json } = await post('/dsh-console/api/inject', { sessionId: injectFor, text })
+          if (!ok || json.ok === false) throw new Error(json.message || 'HTTP 失败')
+          setNotice(json.resumed ? '已投递（恢复会话）' : '已投递')
+          setInjectText('')
+          setInjectFor('')
+        } catch (e) {
+          setNotice('投递失败：' + String((e && e.message) || e))
+        } finally {
+          setBusyId('')
+        }
+      }
+      const q = search.trim().toLowerCase()
+      const visible = (onlyRunning ? rows.filter((s) => s.running) : rows)
+        .filter((s) => !q || String(s.title || "").toLowerCase().includes(q) || String(s.workspace || "").toLowerCase().includes(q))
+      const prettyWs = (raw) => {
+        let s = String(raw || "")
+        s = s.replace(/~([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        s = s.replace(/~/g, "")
+        s = s.replace(/^--+|-+$/g, "").replace(/-+/g, "/").replace(/\/+/g, "/")
+        const i = s.lastIndexOf("Desktop/")
+        if (i >= 0) s = s.slice(i + 8)
+        return s || "默认"
+      }
+      const fmtTime = (value) => {
+        try {
+          const d = new Date(String(value || ""))
+          if (Number.isNaN(d.getTime())) return ""
+          return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        } catch (e) {
+          return ""
+        }
+      }
+      const groups = []
+      const byWs = new Map()
+      for (const s of visible) {
+        const name = prettyWs(s.workspace)
+        if (!byWs.has(name)) { byWs.set(name, []); groups.push({ name, rows: byWs.get(name) }) }
+        byWs.get(name).push(s)
+      }
+      const collapsedCount = groups.filter((g) => collapsed[g.name]).length
+      const toggleGroup = (name) => setCollapsed((old) => ({ ...old, [name]: !old[name] }))
+      const exportMd = () => {
+        try {
+          const lines = ["# 会话雷达", "", `> ${new Date().toLocaleString()} · ${running} 运行 / ${visible.length} 可见`, ""]
+          for (const group of groups) {
+            lines.push(`## ${group.name}`)
+            lines.push("")
+            lines.push("| 会话 | 运行 | 轮次 | ctx% | 最后活跃 |")
+            lines.push("| --- | --- | ---: | ---: | --- |")
+            for (const s of group.rows) {
+              lines.push(`| ${String(s.title || s.sessionId).replace(/\|/g, "\\|")} | ${s.running ? "●" : "○"} | ${Number(s.turns) || 0} | ${Number(s.contextPct) || 0} | ${new Date(String(s.lastActive || "")).toLocaleTimeString()} |`)
+            }
+            lines.push("")
+          }
+          const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `radar-${new Date().toISOString().slice(0, 10)}.md`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          setTimeout(() => URL.revokeObjectURL(url), 1000)
+          setNotice("已导出当前视图")
+        } catch (e) {
+          setNotice("导出失败：" + String((e && e.message) || e))
+        }
+      }
+      const toggleAll = () => {
+        if (collapsedCount > 0) setCollapsed({})
+        else { const next = {}; for (const g of groups) next[g.name] = true; setCollapsed(next) }
+      }
+      const chip = (label, onClick, disabled, tone) => h("button", {
+        type: "button",
+        disabled: Boolean(disabled),
+        onClick: (event) => { event.stopPropagation(); if (!disabled) onClick() },
+        style: {
+          flex: "none", fontSize: "10.5px", padding: "1px 5px", borderRadius: "6px",
+          cursor: disabled ? "not-allowed" : "pointer",
+          border: "1px solid " + (tone === "danger" ? "rgba(248,113,113,.45)" : "rgba(148,163,184,.3)"),
+          background: "transparent", color: tone === "danger" ? "#f87171" : "inherit", opacity: disabled ? 0.5 : 1,
+        },
+      }, label)
+      return h("div", {
+        className: "dsc-radar-body",
+        style: { display: "flex", flexDirection: "column", gap: "4px", padding: "6px", minWidth: 0, width: "100%", boxSizing: "border-box", overflowX: "hidden" },
+      },
+        h("div", { style: { display: "flex", alignItems: "center", gap: "4px", fontSize: "11.5px", opacity: 0.85, flexWrap: "wrap" } },
+          h("span", null, `${running} 运行 · ${visible.length} 可见`),
+          chip("刷新", load, Boolean(busyId)),
+          chip(onlyRunning ? "看全部" : "只看运行中", () => setOnlyRunning((v) => !v)),
+          chip(collapsedCount > 0 ? "展开分类" : "收起分类", toggleAll),
+          chip("导出", exportMd, visible.length === 0),
+          h("input", {
+            value: search,
+            placeholder: "搜索标题/工作区…",
+            onChange: (e) => setSearch(e.target.value),
+            style: { flex: "1 1 90px", minWidth: 0, fontSize: "11px", padding: "2px 6px", borderRadius: "6px", border: "1px solid rgba(148,163,184,.3)", background: "transparent", color: "inherit" },
+          })),
+        notice ? h("div", { style: { fontSize: "11px", color: "#fbbf24" } }, notice) : null,
+        error ? h("div", { style: { fontSize: "11px", color: "#f87171" } }, error) : null,
+        h("div", {
+          style: {
+            display: "flex", flexDirection: "column", gap: "3px", overflowY: "auto", overflowX: "hidden",
+            maxHeight: "calc(100vh - 200px)", paddingRight: "2px", minWidth: 0,
+          },
+        },
+          visible.length
+            ? groups.map((group) => {
+              const showHeaders = !q
+              const isCollapsed = showHeaders && Boolean(collapsed[group.name])
+              const groupRunning = group.rows.filter((s) => s.running).length
+              return h("div", { key: group.name, style: { display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 } },
+                h("button", {
+                  type: "button",
+                  onClick: () => toggleGroup(group.name),
+                  title: group.name,
+                  style: {
+                    display: showHeaders ? "flex" : "none", alignItems: "center", gap: "4px", width: "100%", textAlign: "left",
+                    padding: "3px 6px", borderRadius: "6px", border: "1px solid rgba(148,163,184,.18)",
+                    background: "rgba(148,163,184,.06)", color: "inherit", cursor: "pointer", fontSize: "11px", opacity: 0.9,
+                  },
+                },
+                  h("span", { style: { flex: "none", width: "10px" } }, isCollapsed ? "▸" : "▾"),
+                  h("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, group.name),
+                  h("span", { style: { flex: "none", opacity: 0.7 } }, groupRunning ? `${groupRunning} 运行 / ${group.rows.length}` : `${group.rows.length}`)),
+                isCollapsed ? null : h("div", { style: { display: "flex", flexDirection: "column", gap: "3px", paddingLeft: "3px", minWidth: 0 } },
+                  ...group.rows.map((s) => {
+                    const pct = Math.max(0, Math.min(100, Number(s.contextPct) || 0))
+                    const status = s.running ? "#34d399" : (s.stale ? "#f59e0b" : "#94a3b8")
+                    return h("div", { key: s.sessionId, style: { display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 } },
+                      h("div", {
+                        title: s.sessionId,
+                        onClick: () => openSession && openSession(s.sessionId),
+                        style: {
+                          display: "flex", alignItems: "center", gap: "4px", width: "100%", textAlign: "left",
+                          padding: "3px 6px", borderRadius: "6px", border: "1px solid rgba(148,163,184,.22)",
+                          background: "transparent", color: "inherit", cursor: "pointer", fontSize: "11.5px", minWidth: 0,
+                        },
+                      },
+                        h("span", { style: { width: "6px", height: "6px", borderRadius: "50%", background: status, flex: "none" } }),
+                        h("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.title || s.sessionId),
+                        h("span", { style: { opacity: 0.5, flex: "none", fontSize: "10px" } }, fmtTime(s.lastActive)),
+                        h("span", { style: { opacity: 0.65, flex: "none", fontSize: "10.5px" } }, `${Number(s.turns) || 0}轮`),
+                        h("span", { style: { opacity: pct > 60 ? 1 : 0.65, color: pct > 60 ? "#fbbf24" : "inherit", flex: "none", fontSize: "10.5px" } }, `${pct}%`),
+                        chip("投递", () => setInjectFor((v) => (v === s.sessionId ? "" : s.sessionId)), Boolean(busyId)),
+                        s.running ? chip("打断", () => interrupt(s.sessionId), Boolean(busyId), "danger") : null),
+                      injectFor === s.sessionId
+                        ? h("div", { style: { display: "flex", gap: "3px", padding: "0 3px 3px", minWidth: 0 } },
+                          h("input", {
+                            value: injectText,
+                            autoFocus: true,
+                            placeholder: "发给这个会话…",
+                            onChange: (e) => setInjectText(e.target.value),
+                            onKeyDown: (e) => { if (e.key === "Enter" && !busyId) inject() },
+                            style: { flex: 1, minWidth: 0, fontSize: "11px", padding: "3px 5px", borderRadius: "6px", border: "1px solid rgba(148,163,184,.35)", background: "transparent", color: "inherit" },
+                          }),
+                          chip("发送", inject, !injectText.trim() || Boolean(busyId)))
+                        : null)
+                  })))
+            })
+            : h("div", { style: { fontSize: "11.5px", opacity: 0.6 } }, onlyRunning ? "当前没有运行中的会话。" : "没有正在运行或最近活跃的会话。")))
+    }
+
+    /**
+     * 会话雷达浮层启动器：不依赖右栏开合，点按钮直接在页面内弹出面板。
+     */
+    function RadarLauncher(props) {
+      const [open, setOpen] = React.useState(false)
+      const openSession = props && typeof props.openSession === "function" ? props.openSession : null
+      return h(React.Fragment, null,
+        h("button", {
+          type: "button",
+          title: "打开会话雷达",
+          onClick: () => setOpen((v) => !v),
+          style: { background: "transparent", border: "1px solid rgba(148,163,184,.35)", borderRadius: "8px", color: "inherit", cursor: "pointer", padding: "2px 8px", fontSize: "12px" },
+        }, open ? "收起雷达" : "雷达"),
+        open
+          ? h("div", {
+            style: {
+              position: "fixed", right: "14px", top: "64px", width: "380px", maxHeight: "75vh",
+              display: "flex", flexDirection: "column", zIndex: 9999,
+              background: "var(--dsw-alias-bg-layer-1)", border: "1px solid rgba(148,163,184,.35)",
+              borderRadius: "12px", boxShadow: "0 12px 32px rgba(0,0,0,.45)", overflow: "hidden",
             },
-              h('span', { style: { width: '7px', height: '7px', borderRadius: '50%', background: status, flex: 'none' } }),
-              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, s.title || s.sessionId),
-              h('span', { style: { opacity: 0.7, flex: 'none' } }, `${Number(s.turns) || 0}轮`),
-              h('span', { style: { opacity: pct > 60 ? 1 : 0.7, color: pct > 60 ? '#fbbf24' : 'inherit', flex: 'none' } }, `${pct}%`))
-          })
-          : h('div', { style: { fontSize: '12px', opacity: 0.6 } }, '没有正在运行或最近活跃的会话。'))
+          },
+            h("div", { style: { display: "flex", alignItems: "center", gap: "6px", padding: "6px 8px", borderBottom: "1px solid rgba(148,163,184,.2)" } },
+              h("span", { style: { flex: 1, fontSize: "12px", fontWeight: 600 } }, "会话雷达"),
+              h("button", {
+                type: "button",
+                onClick: () => setOpen(false),
+                style: { background: "transparent", border: "none", color: "inherit", cursor: "pointer", fontSize: "14px", opacity: 0.7 },
+              }, "×")),
+            h("div", { style: { flex: 1, minHeight: 0, display: "flex" } }, h(RadarTabBody, { openSession })))
+          : null)
+    }
+
+    /**
+     * 任务进度（DSH 右侧面板第二个 tab）：流水线/贴图/地图/平衡 + jobs 概览。
+     */
+    function TaskProgressBody() {
+      const [data, setData] = React.useState(null)
+      const [error, setError] = React.useState('')
+      React.useEffect(() => {
+        let alive = true
+        const load = () => fetch('/dsh-console/api/progress')
+          .then((r) => r.json())
+          .then((json) => { if (alive) { setData(json); setError('') } })
+          .catch((e) => { if (alive) setError(String((e && e.message) || e)) })
+        load()
+        const timer = setInterval(load, 5000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [])
+      const labels = { desc: '描述/代码', art: '贴图', map: '地图', balance: '平衡' }
+      const tasks = (data && data.tasks) || []
+      const jobs = (data && data.jobs) || {}
+      const counts = jobs.counts || {}
+      const runningSessions = (((data || {}).sessions || {}).running || []).length
+      const goals = ((data || {}).commander || {}).goals || []
+      const latestGoal = goals[0] || null
+      const recentJobs = (jobs.recent || []).slice(0, 6)
+      const tone = (state) => (state === 'running' ? '#34d399' : (state === 'idle' ? '#94a3b8' : '#f87171'))
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', fontSize: '12px' } },
+        error ? h('div', { style: { color: '#f87171', fontSize: '11px' } }, error) : null,
+        h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap', opacity: 0.85 } },
+          h('span', null, `会话运行中 ${runningSessions}`),
+          h('span', null, `jobs 成功 ${counts.succeeded || 0}`),
+          h('span', null, `失败 ${counts.failed || 0}`)),
+        tasks.map((task) => h('div', {
+          key: task.id,
+          style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(148,163,184,.25)' },
+        },
+          h('span', { style: { width: '7px', height: '7px', borderRadius: '50%', background: tone(task.state), flex: 'none' } }),
+          h('span', { style: { flex: 1 } }, labels[task.id] || task.id),
+          h('span', { style: { opacity: 0.75 } }, task.state === 'running' ? '运行中' : '空闲'),
+          task.batch ? h('span', { style: { opacity: 0.6 } }, `批次 ${task.batch}`) : null,
+          task.workers ? h('span', { style: { opacity: 0.6 } }, `${task.workers} worker`) : null)),
+        recentJobs.length
+          ? h("div", { style: { display: "flex", flexDirection: "column", gap: "2px", opacity: 0.85 } },
+            h("div", { style: { fontSize: "11px", opacity: 0.7 } }, "最近任务"),
+            ...recentJobs.map((job) => h("div", {
+              key: job.id,
+              title: `${job.id} · ${job.type || ""}`,
+              style: { display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", minWidth: 0 },
+            },
+              h("span", { style: { width: "6px", height: "6px", borderRadius: "50%", flex: "none", background: job.state === "succeeded" ? "#34d399" : (job.state === "failed" ? "#f87171" : "#fbbf24") } }),
+              h("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, job.title || job.id))))
+          : null,
+        latestGoal
+          ? h('div', { style: { opacity: 0.8 } }, `总指挥：${latestGoal.id} · ${latestGoal.state} · ${(latestGoal.tasks || []).length} 个子任务`)
+          : h('div', { style: { opacity: 0.6 } }, '总指挥：暂无任务卡'),
+        h('div', { style: { opacity: 0.6, fontSize: '11px' } }, data ? `更新于 ${data.at || ''}` : '加载中…'))
     }
 
     return {
@@ -3548,7 +3976,7 @@ window.__ModuleLoader__.load({
 
         // 会话雷达（DSH 右侧面板）：类型注册 + body + 「开始页 More」入口。
         // 依赖服务缺失（旧版 DSH）时整个块静默跳过，不影响控制台。
-        ctx.inject(['sidebarRightTabs', 'sidebarRight', 'uiWorkspace'], (scope) => {
+        ctx.inject(['sidebarRightTabs', 'sidebarRight', 'uiWorkspace', 'layout'], (scope) => {
           try {
             const KIND = 'aihub-radar'
             ctx.effect(() => scope.sidebarRightTabs.register({
@@ -3581,12 +4009,68 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   onClick: () => {
                     try {
+                      scope.layout.openRightbar(true, false)
+                    } catch (e) {
+                      console.warn('[ai-hub] openRightbar failed', e)
+                    }
+                    try {
                       scope.sidebarRight.openTab(KIND, { params: {} })
                     } catch (e) {
                       console.warn('[ai-hub] openTab failed', e)
                     }
                   },
                 }, '会话雷达'),
+              ),
+            )
+            // 对话头部「雷达」按钮：右栏收起时也能一键拉出会话雷达
+            ctx.slots.inject('conversation.session.header.actions', () =>
+              ctx.slots.register(
+                { name: 'conversation.session.header.actions', id: 'aihub-radar-header', order: 80, locale: NS, label: () => '会话雷达' },
+                (props) => h(RadarLauncher, {
+                  ...(props || {}),
+                  openSession: (id) => {
+                    try {
+                      scope.uiWorkspace.openSession(id)
+                    } catch (e) {
+                      console.warn('[ai-hub] header openSession failed', e)
+                    }
+                  },
+                }),
+              ),
+            )
+            // 第二个右栏 tab：任务进度（流水线/贴图/地图/平衡 + jobs）
+            ctx.effect(() => scope.sidebarRightTabs.register({
+              id: 'aihub-tasks',
+              kind: 'aihub-tasks',
+              patterns: ['dsh-resource://aihub-tasks/**'],
+              priority: 'builtin',
+              canOpen: () => true,
+              title: () => '任务进度',
+            }), 'ds-console: tasks tab type')
+            ctx.slots.inject('sidebar.right.pane.tab', () =>
+              ctx.slots.register(
+                { name: 'sidebar.right.pane.tab', key: 'aihub-tasks', locale: NS },
+                (props) => h(TaskProgressBody, props || {}),
+              ),
+            )
+            ctx.slots.inject('sidebar.right.tab.guide.actions', () =>
+              ctx.slots.register(
+                { name: 'sidebar.right.tab.guide.actions', id: 'aihub-tasks-open', order: 61, locale: NS, label: () => '任务进度' },
+                () => h('button', {
+                  type: 'button',
+                  onClick: () => {
+                    try {
+                      scope.layout.openRightbar(true, false)
+                    } catch (e) {
+                      console.warn('[ai-hub] tasks openRightbar failed', e)
+                    }
+                    try {
+                      scope.sidebarRight.openTab('aihub-tasks', { params: {} })
+                    } catch (e) {
+                      console.warn('[ai-hub] tasks openTab failed', e)
+                    }
+                  },
+                }, '任务进度'),
               ),
             )
           } catch (error) {

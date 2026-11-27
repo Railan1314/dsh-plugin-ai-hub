@@ -4647,6 +4647,24 @@ function createConsole(ctx) {
       }
       return
     }
+    if (req.method === 'GET' && (route === 'api/model-scores' || route === 'model-scores')) {
+      try {
+        const readJsonSafe = (file) => {
+          try { return JSON.parse(readFileSync(file, 'utf8')) } catch (e) { return null }
+        }
+        const hard = readJsonSafe(join(root, 'tools', 'model_hard_report.json'))
+        const simple = readJsonSafe(join(root, 'tools', 'key_acceptance_report.json'))
+        sendJson(res, 200, {
+          ok: true,
+          at: nowText(),
+          hard: (hard && hard.runs) || [],
+          simple: (simple && simple.results) || [],
+        })
+      } catch (error) {
+        sendJson(res, 500, { ok: false, code: 'E_MODEL_SCORES', message: String((error && error.message) || error) })
+      }
+      return
+    }
     if (req.method === 'GET' && (route === 'api/tool-stats' || route === 'tool-stats')) {
       try {
         const days = Math.min(30, Math.max(1, Number(url.searchParams.get('days')) || 7))
